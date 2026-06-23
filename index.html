@@ -521,24 +521,45 @@
         }
       }
     }
-    for(let i=0;i<p.pieces.length;i++){
-      for(let j=i+1;j<p.pieces.length;j++){
-        const a=p.pieces[i], b=p.pieces[j];
-        const ra=massToRadius(a.mass), rb=massToRadius(b.mass);
-        const dx=b.x-a.x, dy=b.y-a.y;
-        const d=Math.hypot(dx,dy)||0.01;
-        if(d < ra + rb){
-          a.mass += b.mass; p.pieces.splice(j,1); j--; continue;
-        }
-        // keep pieces from passing through each other while not yet mergeable
-        const overlap = ra+rb - d;
-        if(overlap>0 && !bothReady){
-          const nx=dx/d, ny=dy/d;
-          a.x -= nx*overlap*0.5; a.y -= ny*overlap*0.5;
-          b.x += nx*overlap*0.5; b.y += ny*overlap*0.5;
-        }
-      }
+for(let i=0;i<p.pieces.length;i++){
+  for(let j=i+1;j<p.pieces.length;j++){
+
+    const a = p.pieces[i];
+    const b = p.pieces[j];
+
+    const ra = massToRadius(a.mass);
+    const rb = massToRadius(b.mass);
+
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+
+    const d = Math.hypot(dx,dy) || 0.01;
+
+    const bothReady = a.separated && b.separated;
+
+    // Nur mergen wenn beide wirklich getrennt wurden
+    if(bothReady && d < ra + rb){
+      a.mass += b.mass;
+      p.pieces.splice(j,1);
+      j--;
+      continue;
     }
+
+    // Kollisionsabstoßung solange noch nicht mergebar
+    const overlap = ra + rb - d;
+
+    if(overlap > 0 && !bothReady){
+      const nx = dx / d;
+      const ny = dy / d;
+
+      a.x -= nx * overlap * 0.5;
+      a.y -= ny * overlap * 0.5;
+
+      b.x += nx * overlap * 0.5;
+      b.y += ny * overlap * 0.5;
+    }
+  }
+}
   }
 
   function splitPlayer(p){
