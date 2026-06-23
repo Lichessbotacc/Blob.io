@@ -3,76 +3,77 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-<title>Blob.io Offline</title>
+<title>Blob.io Pro Offline</title>
 <style>
   :root{
-    --ui-bg: rgba(0,0,0,.55);
+    --ui-bg: rgba(0,0,0,.65);
     --ui-bg-light: rgba(255,255,255,.08);
     --accent: #4caf50;
     --accent-hover: #43a047;
     --danger: #e53935;
   }
   *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-  html,body{margin:0;height:100%;overflow:hidden;background:#111;font-family:-apple-system,BlinkMacSystemFont,Arial,sans-serif;color:#fff;
+  html,body{margin:0;height:100%;overflow:hidden;background:#141414;font-family:-apple-system,BlinkMacSystemFont,Arial,sans-serif;color:#fff;
     touch-action:none;
   }
-  canvas{display:block;background:#f5f5f5;touch-action:none;}
+  canvas{display:block;background:#f8f9fa;touch-action:none;}
 
-  #hud{position:fixed;top:10px;left:10px;background:var(--ui-bg);padding:8px 12px;border-radius:6px;font-size:14px;
-    padding-top:max(8px, env(safe-area-inset-top));
+  #hud{position:fixed;top:10px;left:10px;background:var(--ui-bg);padding:8px 14px;border-radius:6px;font-size:14px;font-weight:bold;
+    padding-top:max(8px, env(safe-area-inset-top));box-shadow:0 2px 8px rgba(0,0,0,0.4);
   }
-  #leaderboard{position:fixed;top:10px;right:10px;background:var(--ui-bg);padding:8px 12px;border-radius:6px;font-size:13px;min-width:160px;
-    padding-top:max(8px, env(safe-area-inset-top));
+  #leaderboard{position:fixed;top:10px;right:10px;background:var(--ui-bg);padding:10px 14px;border-radius:6px;font-size:13px;min-width:180px;
+    padding-top:max(10px, env(safe-area-inset-top));box-shadow:0 2px 8px rgba(0,0,0,0.4);
   }
-  #leaderboard h3{margin:0 0 4px;font-size:14px;color:#ffd54f}
-  .row{display:flex;justify-content:space-between;gap:10px}
+  #leaderboard h3{margin:0 0 6px;font-size:14px;color:#ffd54f;text-transform:uppercase;letter-spacing:0.05em}
+  .row{display:flex;justify-content:space-between;gap:10px;margin:2px 0}
 
   #settingsBtn{
     position:fixed; top:10px; left:50%; transform:translateX(-50%);
-    background:var(--ui-bg); border:none; color:#fff; width:36px;height:36px;border-radius:50%;
-    font-size:18px; cursor:pointer; display:flex; align-items:center; justify-content:center;
-    margin-top:max(0px, env(safe-area-inset-top));
+    background:var(--ui-bg); border:none; color:#fff; width:38px;height:38px;border-radius:50%;
+    font-size:20px; cursor:pointer; display:flex; align-items:center; justify-content:center;
+    margin-top:max(0px, env(safe-area-inset-top));box-shadow:0 2px 8px rgba(0,0,0,0.4);transition:all 0.15s;
   }
-  #settingsBtn:hover{background:rgba(0,0,0,.7)}
+  #settingsBtn:hover{background:rgba(0,0,0,.85);transform:translateX(-50%) rotate(45deg);}
 
-  #overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.7);z-index:20}
-  #overlay .box{background:#222;padding:24px 32px;border-radius:10px;text-align:center;box-shadow:0 8px 30px rgba(0,0,0,.5);max-width:90vw;}
-  #overlay input{padding:8px;font-size:16px;border-radius:4px;border:none;width:200px;margin:8px 0;text-align:center}
-  #overlay button.primary{padding:8px 20px;font-size:16px;background:var(--accent);border:none;color:#fff;border-radius:4px;cursor:pointer;margin-top:8px}
+  #overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.75);z-index:20}
+  #overlay .box{background:#1e1e1e;padding:28px 36px;border-radius:12px;text-align:center;box-shadow:0 12px 40px rgba(0,0,0,.7);width:380px;max-width:90vw;}
+  #overlay input{padding:10px;font-size:16px;border-radius:6px;border:2px solid #333;background:#111;color:#fff;width:100%;margin:12px 0;text-align:center;transition:border-color 0.2s}
+  #overlay input:focus{border-color:var(--accent);outline:none;}
+  #overlay button.primary{padding:10px 24px;font-size:16px;background:var(--accent);border:none;color:#fff;border-radius:6px;cursor:pointer;margin-top:8px;width:100%;font-weight:bold;transition:background 0.15s}
   #overlay button.primary:hover{background:var(--accent-hover)}
 
   /* Settings panel */
-  #settingsPanel{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.7);z-index:30}
-  #settingsPanel .box{background:#1c1c1c;padding:20px 24px;border-radius:12px;width:340px;max-width:92vw;max-height:85vh;overflow-y:auto;
-    box-shadow:0 8px 30px rgba(0,0,0,.5);}
-  #settingsPanel h2{margin:0 0 14px;font-size:18px;text-align:center}
-  .setting-row{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:12px 0;font-size:14px}
+  #settingsPanel{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.75);z-index:30}
+  #settingsPanel .box{background:#1c1c1c;padding:20px 24px;border-radius:12px;width:360px;max-width:92vw;max-height:85vh;overflow-y:auto;
+    box-shadow:0 12px 40px rgba(0,0,0,.7);}
+  #settingsPanel h2{margin:0 0 14px;font-size:20px;text-align:center;color:#eee}
+  .setting-row{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:12px 0;font-size:14px;color:#ccc}
   .setting-row label{flex:1}
-  .setting-row input[type=range]{flex:1;max-width:140px}
-  .setting-row .val{width:36px;text-align:right;font-size:13px;opacity:.85}
+  .setting-row input[type=range]{flex:1;max-width:140px;accent-color:var(--accent)}
+  .setting-row .val{width:40px;text-align:right;font-size:13px;opacity:.85;font-family:monospace}
   .toggle{position:relative;width:46px;height:26px;background:#444;border-radius:13px;cursor:pointer;flex-shrink:0;transition:background .15s}
   .toggle.on{background:var(--accent)}
   .toggle .knob{position:absolute;top:3px;left:3px;width:20px;height:20px;background:#fff;border-radius:50%;transition:left .15s}
   .toggle.on .knob{left:23px}
-  #settingsPanel .closeBtn{display:block;margin:16px auto 0;padding:8px 24px;background:var(--accent);border:none;color:#fff;border-radius:6px;cursor:pointer;font-size:14px}
+  #settingsPanel .closeBtn{display:block;margin:20px auto 0;padding:10px 28px;background:var(--accent);border:none;color:#fff;border-radius:6px;cursor:pointer;font-size:14px;font-weight:bold}
   #settingsPanel .closeBtn:hover{background:var(--accent-hover)}
-  #settingsPanel .section-title{font-size:12px;text-transform:uppercase;letter-spacing:.06em;opacity:.6;margin:16px 0 4px;}
+  #settingsPanel .section-title{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--accent);margin:20px 0 6px;font-weight:bold}
   #settingsPanel .section-title:first-of-type{margin-top:0}
-  #settingsPanel .hint{font-size:11px;opacity:.55;margin-top:-6px;margin-bottom:4px;}
+  #settingsPanel .hint{font-size:11px;opacity:.55;margin-top:-4px;margin-bottom:6px;line-height:1.3}
 
-  /* Touch controls (iPad / touch devices) */
-  #touchControls{position:fixed;bottom:0;left:0;display:none;gap:10px;padding:14px;
-    padding-bottom:max(14px, env(safe-area-inset-bottom));
+  /* Touch controls */
+  #touchControls{position:fixed;bottom:0;left:0;display:none;gap:12px;padding:20px;
+    padding-bottom:max(20px, env(safe-area-inset-bottom));
     z-index:15;
   }
   #touchControls button{
-    width:64px;height:64px;border-radius:50%;border:2px solid rgba(255,255,255,.35);
-    background:rgba(0,0,0,.45);color:#fff;font-size:14px;font-weight:bold;
-    display:flex;align-items:center;justify-content:center;cursor:pointer;user-select:none;
+    width:68px;height:68px;border-radius:50%;border:2px solid rgba(255,255,255,.25);
+    background:rgba(0,0,0,.6);color:#fff;font-size:13px;font-weight:bold;
+    display:flex;align-items:center;justify-content:center;cursor:pointer;user-select:none;box-shadow:0 4px 10px rgba(0,0,0,0.3);
   }
-  #touchControls button:active{background:rgba(255,255,255,.25)}
-  #touchControls button.split{background:rgba(76,175,80,.55);border-color:rgba(76,175,80,.8)}
-  #touchControls button.throw{background:rgba(251,140,0,.55);border-color:rgba(251,140,0,.8)}
+  #touchControls button:active{background:rgba(255,255,255,.3)}
+  #touchControls button.split{background:rgba(76,175,80,.65);border-color:rgba(76,175,80,.8)}
+  #touchControls button.throw{background:rgba(251,140,0,.65);border-color:rgba(251,140,0,.8)}
 
   body.touch-mode #touchControls{display:flex}
 </style>
@@ -85,75 +86,64 @@
 
 <div id="touchControls">
   <button class="split" id="btnSplit">Split</button>
-  <button class="throw" id="btnThrow">Throw</button>
-  <button id="btnDouble">D</button>
-  <button id="btnTriple">T</button>
+  <button class="throw" id="btnThrow">Eject</button>
+  <button id="btnDouble">Double</button>
+  <button id="btnTriple">Triple</button>
 </div>
 
 <div id="overlay">
   <div class="box">
-    <h2 id="title">Blob.io Offline</h2>
-    <p id="subtitle">Gib deinen Namen ein und spiele!</p>
-    <div><input id="name" maxlength="16" placeholder="Dein Name" value="Spieler"/></div>
+    <h2 id="title">Blob.io Pro</h2>
+    <p id="subtitle" style="color:#aaa;font-size:14px;">Erlebe präzise Physik & adaptive Human-AI Bots.</p>
+    <div><input id="name" maxlength="14" placeholder="Dein Name" value="Spieler"/></div>
     <div>
       <button class="primary" id="play">Spielen</button>
     </div>
-    <p style="font-size:12px;opacity:.7;margin-top:14px">Maus = bewegen · Leertaste = teilen · W = Masse abwerfen<br>Auf Touch-Geräten erscheinen Steuer-Buttons unten links.</p>
-    <p style="font-size:12px;opacity:.7;margin-top:6px"><a href="#" id="openSettingsFromMenu" style="color:#9fd89f">⚙ Einstellungen öffnen</a></p>
+    <p style="font-size:11px;opacity:.6;margin-top:16px;line-height:1.4">Maus = Lenken · Leertaste = Teilen · W = Masse abwerfen<br>D / T = Double / Triple Split</p>
+    <p style="font-size:12px;margin-top:8px"><a href="#" id="openSettingsFromMenu" style="color:#4caf50;text-decoration:none;font-weight:bold">⚙ Einstellungen bearbeiten</a></p>
   </div>
 </div>
 
 <div id="settingsPanel">
   <div class="box">
-    <h2>Einstellungen</h2>
+    <h2>Game Settings</h2>
 
-    <div class="section-title">Welt</div>
+    <div class="section-title">Welt & Performance</div>
     <div class="setting-row">
-      <label for="optFoodCount">Futter-Menge</label>
-      <input type="range" id="optFoodCount" min="200" max="1600" step="50">
+      <label for="optFoodCount">Futter-Dichte</label>
+      <input type="range" id="optFoodCount" min="300" max="1800" step="50">
       <span class="val" id="optFoodCountVal"></span>
     </div>
     <div class="setting-row">
-      <label for="optVirusCount">Anzahl Viren</label>
-      <input type="range" id="optVirusCount" min="0" max="60" step="1">
+      <label for="optVirusCount">Viren-Anzahl</label>
+      <input type="range" id="optVirusCount" min="5" max="80" step="1">
       <span class="val" id="optVirusCountVal"></span>
     </div>
     <div class="setting-row">
-      <label for="optBotCount">Anzahl Bots</label>
-      <input type="range" id="optBotCount" min="0" max="40" step="1">
+      <label for="optBotCount">Bot-Anzahl</label>
+      <input type="range" id="optBotCount" min="0" max="35" step="1">
       <span class="val" id="optBotCountVal"></span>
     </div>
 
-    <div class="section-title">Bot-Verhalten</div>
+    <div class="section-title">Pro-Features</div>
+    <div class="hint">Instant Recombine: Getrennte Zellen verschmelzen nach einem kurzen, dynamischen Delay direkt wieder.</div>
     <div class="setting-row">
-      <label for="optBotAggro">Bot-Aggressivität</label>
-      <input type="range" id="optBotAggro" min="0" max="100" step="5">
-      <span class="val" id="optBotAggroVal"></span>
-    </div>
-    <div class="setting-row">
-      <label for="optBotName">Bot-Namen anzeigen</label>
-      <div class="toggle" id="optBotNamesToggle"><div class="knob"></div></div>
-    </div>
-
-    <div class="section-title">Spielregeln</div>
-    <div class="hint">Instant Merge: geteilte Zellen verschmelzen sofort wieder bei Kontakt (kein Timer).</div>
-    <div class="setting-row">
-      <label for="optMassDecay">Masseverlust über Zeit</label>
+      <label for="optMassDecay">Automatischer Masseverlust</label>
       <div class="toggle" id="optMassDecayToggle"><div class="knob"></div></div>
     </div>
     <div class="setting-row">
-      <label for="optMinSplit">Mindestmasse zum Teilen</label>
-      <input type="range" id="optMinSplit" min="20" max="80" step="5">
+      <label for="optMinSplit">Split-Mindestmasse</label>
+      <input type="range" id="optMinSplit" min="36" max="100" step="2">
       <span class="val" id="optMinSplitVal"></span>
     </div>
 
     <div class="section-title">Steuerung</div>
     <div class="setting-row">
-      <label for="optTouchControls">Touch-Buttons immer anzeigen</label>
+      <label for="optTouchControls">Touch-Overlays erzwingen</label>
       <div class="toggle" id="optTouchToggle"><div class="knob"></div></div>
     </div>
 
-    <button class="closeBtn" id="closeSettings">Schließen</button>
+    <button class="closeBtn" id="closeSettings">Speichern</button>
   </div>
 </div>
 
@@ -174,16 +164,15 @@
   const openSettingsFromMenu = document.getElementById('openSettingsFromMenu');
 
   // ---------------------------------------------------------------------
-  // SETTINGS
+  // CONFIGURATION & CONFIG MANAGER
   // ---------------------------------------------------------------------
   const DEFAULT_SETTINGS = {
-    foodCount: 800,
-    virusCount: 25,
-    botCount: 18,
-    botAggro: 60,
+    foodCount: 1000,
+    virusCount: 35,
+    botCount: 22,
     showBotNames: true,
-    massDecay: false,
-    minSplitMass: 35,
+    massDecay: true,
+    minSplitMass: 36,
     forceTouchControls: false
   };
   let settings = Object.assign({}, DEFAULT_SETTINGS);
@@ -219,9 +208,7 @@
   bindRange('optFoodCount', 'foodCount');
   bindRange('optVirusCount', 'virusCount');
   bindRange('optBotCount', 'botCount');
-  bindRange('optBotAggro', 'botAggro', v => v + '%');
   bindRange('optMinSplit', 'minSplitMass');
-  bindToggle('optBotNamesToggle', 'showBotNames');
   bindToggle('optMassDecayToggle', 'massDecay');
   bindToggle('optTouchToggle', 'forceTouchControls', applyTouchMode);
 
@@ -234,22 +221,20 @@
   applyTouchMode();
 
   // ---------------------------------------------------------------------
-  // CONSTANTS / WORLD
+  // PHYSICS & DATA CONSTANTS (Senpa / Agar Alignment)
   // ---------------------------------------------------------------------
-  const WORLD = 6000;
-  const EJECT_MASS = 16;
+  const WORLD = 5000;
+  const EJECT_MASS = 15;
   const MAX_PIECES = 16;
+  const VIRUS_BASE_MASS = 100;
 
-  const COLORS = ['#e53935','#fb8c00','#fdd835','#43a047','#1e88e5','#5e35b1','#d81b60','#00897b','#3949ab','#7cb342'];
-  const BOT_NAMES = ['Anna','Tom','Lisa','Max','Eva','Leo','Mia','Ben','Lia','Ole','Jan','Kai','Noa','Pia','Sam','Tim','Una','Vik','Wim','Zoe','Finn','Ida','Theo','Luca','Mara','Nils','Greta','Felix','Lena','Otto'];
+  const COLORS = ['#e53935','#d81b60','#5e35b1','#1e88e5','#00897b','#43a047','#7cb342','#fdd835','#fb8c00','#6d4c41'];
+  const BOT_NAMES = ['Kira⚡','Alpha','TwiSt','Vortex','Slayer','Apex','Ghost','Nebula','SenpaFan','Orbit','Clutch','Doge','Karma','Pluto','Rex','Void','Zeus','Blitz','Frost','Impact','Rogue','Titan','Hydro','Specter'];
 
   let W = innerWidth, H = innerHeight;
   function resize(){ W = innerWidth; H = innerHeight; canvas.width = W; canvas.height = H; }
   addEventListener('resize', resize); resize();
 
-  // ---------------------------------------------------------------------
-  // INPUT: mouse + touch drag for movement
-  // ---------------------------------------------------------------------
   const mouse = { x: W/2, y: H/2 };
   addEventListener('mousemove', e => { mouse.x = e.clientX; mouse.y = e.clientY; });
 
@@ -277,49 +262,41 @@
 
   const rand = (a,b) => a + Math.random()*(b-a);
   const ri = n => Math.floor(Math.random()*n);
-  const massToRadius = m => Math.sqrt(m) * 4;
   
-  // Exponentielle Verlangsamung basierend auf der Blob-Masse (1zu1 wie Agar/Blob.io)
-  const speedFor = m => 2.11 * Math.pow(m, -0.23) * 3.8;
+  // Verbesserte mathematische Kurven für Radius & träge Geschwindigkeiten
+  const massToRadius = m => Math.sqrt(m) * 4.2;
+  const speedFor = m => 2.3 * Math.pow(m, -0.21) * 3.6;
 
   let foods = [], viruses = [], players = [], ejected = [];
   let me = null;
   let running = false;
 
   function makeFood(){
-    return { x: rand(0,WORLD), y: rand(0,WORLD), r: 6, color: COLORS[ri(COLORS.length)], mass: 1 };
+    return { x: rand(10,WORLD-10), y: rand(10,WORLD-10), r: 5, color: COLORS[ri(COLORS.length)], mass: 1.2 };
   }
   function makeVirus(){
-    return { x: rand(0,WORLD), y: rand(0,WORLD), mass: 120, color: '#33d17a', virus: true };
+    return { x: rand(150,WORLD-150), y: rand(150,WORLD-150), mass: VIRUS_BASE_MASS, color: '#26de81' };
   }
 
-  function rollBotSkill(){
-    const skill = Math.pow(Math.random(), 1.4) * 0.6 + Math.random()*0.4;
-    return Math.max(0, Math.min(1, skill));
-  }
-  
-  // Hinzugefügt: boostX und boostY für präzise Explosions-Physik
-  function makePiece(player, x, y, mass){
-    return { x, y, mass, vx:0, vy:0, boostX:0, boostY:0, separated:false, player };
+  function makePiece(player, x, y, mass, bX = 0, bY = 0){
+    return { 
+      x, y, mass, 
+      vx: 0, vy: 0, 
+      boostX: bX, boostY: bY, 
+      canMergeAfter: performance.now() + 1000 + (mass * 0.12), // Dynamischer Recombine Timer basierend auf Masse
+      player 
+    };
   }
   
   function makePlayer(name, isBot, colorOverride){
     const color = colorOverride || COLORS[ri(COLORS.length)];
-    const skill = isBot ? rollBotSkill() : 1;
     const p = {
       name, color, isBot, dead:false, pieces:[], target:{x:WORLD/2,y:WORLD/2},
-      skill,
-      botState: isBot ? {
-        mode: 'roam',
-        decisionAt: 0,
-        splitCooldownUntil: 0,
-        ejectCooldownUntil: 0,
-        reactionDelay: (1-skill) * 280,
-        mistakeChance: (1-skill) * 0.35,
-      } : null
+      lastDecision: 0,
+      botActionCooldown: 0
     };
-    const x = rand(200,WORLD-200), y = rand(200,WORLD-200);
-    p.pieces.push(makePiece(p, x, y, 20));
+    const x = rand(300,WORLD-300), y = rand(300,WORLD-300);
+    p.pieces.push(makePiece(p, x, y, 22));
     p.target.x = x; p.target.y = y;
     return p;
   }
@@ -328,12 +305,14 @@
     foods = []; viruses = []; players = []; ejected = [];
     for(let i=0;i<settings.foodCount;i++) foods.push(makeFood());
     for(let i=0;i<settings.virusCount;i++) viruses.push(makeVirus());
-    me = makePlayer(name || 'Spieler', false, '#1e88e5');
+    
+    me = makePlayer(name || 'Spieler', false, '#0984e3');
     players.push(me);
-    const shuffledNames = BOT_NAMES.slice().sort(()=>Math.random()-0.5);
+
+    let shuffled = BOT_NAMES.slice().sort(()=>Math.random()-0.5);
     for(let i=0;i<settings.botCount;i++){
-      const b = makePlayer(shuffledNames[i%shuffledNames.length], true);
-      b.pieces[0].mass = rand(20, 150);
+      const b = makePlayer(shuffled[i%shuffled.length], true);
+      b.pieces[0].mass = rand(22, 90);
       players.push(b);
     }
   }
@@ -350,215 +329,251 @@
   }
 
   // ---------------------------------------------------------------------
-  // BOT AI
+  // ADAPTIVER HUMAN-LIKE BOT AI ENGINE
   // ---------------------------------------------------------------------
   function updateBot(b, now){
+    if(now < b.lastDecision) return;
+    b.lastDecision = now + rand(40, 100); // Schnelle Reaktionsrate (Menschliche APM)
+
     const c = playerCenter(b);
-    const aggro = settings.botAggro / 100;
+    const bMass = playerMass(b);
+    const myMaxPiece = largestPiece(b);
 
-    let biggestThreat = null;
-    let biggestThreatD = Infinity;
-    let bestPrey = null;
-    let bestPreyD = Infinity;
+    // Verhaltensmuster-Einteilung
+    if (bMass < 130) {
+      // PHASE 1: Schnelles Farming von Kleinpartikeln und Jagd auf kleinere Zellen
+      let targetEntity = null;
+      let minDist = 1200;
 
+      // Suche Futter/Zellen
+      for(const p of players){
+        if(p === b || p.dead) continue;
+        const pMax = largestPiece(p);
+        if(pMax && myMaxPiece.mass > pMax.mass * 1.30){
+          const d = Math.hypot(pMax.x - c.x, pMax.y - c.y);
+          if(d < minDist) { minDist = d; targetEntity = pMax; }
+        }
+      }
+
+      if(targetEntity){
+        b.target.x = targetEntity.x; b.target.y = targetEntity.y;
+        // Aggressiver Split-Kill falls lohnenswert
+        if(minDist < 260 && myMaxPiece.mass > targetEntity.mass * 2.3 && b.pieces.length < 4){
+          splitPlayer(b);
+          b.lastDecision = now + 400;
+          return;
+        }
+      } else {
+        // Falls kein lohnendes Opfer in der Nähe, loope lokales Futter
+        let bestF = null, bestFD = Infinity;
+        for(let i=0; i<35; i++){
+          const f = foods[Math.floor(Math.random()*foods.length)];
+          if(!f) continue;
+          const d = (f.x-c.x)**2 + (f.y-c.y)**2;
+          if(d < bestFD){ bestFD = d; bestF = f; }
+        }
+        if(bestF){ b.target.x = bestF.x; b.target.y = bestF.y; }
+      }
+    } 
+    else {
+      // PHASE 2: Ab 130 Masse -> Suche Viren zum gezielten Absorbieren (Verhalten wie Pro-Spieler)
+      let targetVirus = null;
+      let minVirusDist = 1400;
+
+      for(const v of viruses){
+        const d = Math.hypot(v.x - c.x, v.y - c.y);
+        if(d < minVirusDist){ minVirusDist = d; targetVirus = v; }
+      }
+
+      // Pro-Taktik: Lauf gezielt in Viren, um die massive Zusatzmasse aufzunehmen
+      if(targetVirus){
+        b.target.x = targetVirus.x;
+        b.target.y = targetVirus.y;
+      } else {
+        // Fallback: Roaming/Jagd auf Spieler
+        let bestPrey = null, pDist = 1500;
+        for(const p of players){
+          if(p === b || p.dead) continue;
+          const pm = largestPiece(p);
+          if(myMaxPiece.mass > pm.mass * 1.35){
+            const d = Math.hypot(pm.x - c.x, pm.y - c.y);
+            if(d < pDist){ pDist = d; bestPrey = pm; }
+          }
+        }
+        if(bestPrey){
+          b.target.x = bestPrey.x; b.target.y = bestPrey.y;
+          if(pDist < 400 && myMaxPiece.mass > bestPrey.mass * 2.4 && b.pieces.length < 6){
+            splitPlayer(b);
+          }
+        }
+      }
+    }
+
+    // Flucht-Priorität: Erkennung massiver Gefahren (Überschreibt andere Ziele)
     for(const p of players){
       if(p === b || p.dead) continue;
-
-      const pc = playerCenter(p);
-      const enemyBiggest = largestPiece(p).mass;
-      const myBiggest = largestPiece(b).mass;
-      const d = Math.hypot(pc.x - c.x, pc.y - c.y);
-
-      if(enemyBiggest > myBiggest * 1.15){
-        if(d < biggestThreatD){ biggestThreatD = d; biggestThreat = p; }
-      }
-      if(enemyBiggest * 1.3 < myBiggest){
-        if(d < bestPreyD){ bestPreyD = d; bestPrey = p; }
-      }
-    }
-
-    if(biggestThreat && biggestThreatD < 800){
-      const tc = playerCenter(biggestThreat);
-      let dx = c.x - tc.x, dy = c.y - tc.y;
-      const len = Math.hypot(dx,dy) || 1;
-      b.target.x = c.x + (dx / len) * 800;
-      b.target.y = c.y + (dy / len) * 800;
-      return;
-    }
-
-    if(bestPrey && bestPreyD < 1000){
-      const tc = playerCenter(bestPrey);
-      b.target.x = tc.x; b.target.y = tc.y;
-      const myBiggest = largestPiece(b).mass;
-      const preyBiggest = largestPiece(bestPrey).mass;
-
-      if(myBiggest > preyBiggest * 2.2 && bestPreyD < 380 && Math.random() < (0.2 + aggro * 0.4)){
-        splitPlayer(b);
-      }
-      return;
-    }
-
-    let bestFood = null;
-    let bestFoodD = Infinity;
-    for(let i=0;i<40;i++){
-      const f = foods[Math.floor(Math.random()*foods.length)];
-      if(!f) continue;
-      const d = (f.x-c.x)*(f.x-c.x)+(f.y-c.y)*(f.y-c.y);
-      if(d < bestFoodD){ bestFoodD = d; bestFood = f; }
-    }
-    if(bestFood){ b.target.x = bestFood.x; b.target.y = bestFood.y; }
-
-    const margin = 300;
-    if(c.x < margin) b.target.x += 600;
-    if(c.x > WORLD-margin) b.target.x -= 600;
-    if(c.y < margin) b.target.y += 600;
-    if(c.y > WORLD-margin) b.target.y -= 600;
-
-    if(largestPiece(b).mass > 150){
-      for(const v of viruses){
-        const d = Math.hypot(v.x-c.x, v.y-c.y);
-        if(d < 200){
-          const dx = c.x - v.x, dy = c.y - v.y;
-          const len = Math.hypot(dx,dy) || 1;
-          b.target.x = c.x + (dx/len) * 500;
-          b.target.y = c.y + (dy/len) * 500;
+      const pm = largestPiece(p);
+      if(pm.mass > myMaxPiece.mass * 1.20){
+        const d = Math.hypot(pm.x - c.x, pm.y - c.y);
+        if(d < 500 + massToRadius(pm.mass)){
+          // Berechne Gegen-Vektor für Fluchtrichtung
+          const dx = c.x - pm.x;
+          const dy = c.y - pm.y;
+          const len = Math.hypot(dx, dy) || 1;
+          b.target.x = c.x + (dx/len) * 700;
+          b.target.y = c.y + (dy/len) * 700;
           break;
         }
       }
     }
+
+    // Map-Grenzen abfangen
+    const borderBuffer = 200;
+    if(c.x < borderBuffer) b.target.x += 400;
+    if(c.x > WORLD - borderBuffer) b.target.x -= 400;
+    if(c.y < borderBuffer) b.target.y += 400;
+    if(c.y > WORLD - borderBuffer) b.target.y -= 400;
   }
 
   // ---------------------------------------------------------------------
-  // MOVEMENT & PHYSICS ENGINE (1zu1 Blob.io Mechanik)
+  // CLEAN PHYSICS ENGINE & MOVEMENT DECAY
   // ---------------------------------------------------------------------
   function movePlayer(p){
+    const now = performance.now();
+    
     for(const c of p.pieces){
-      const dx = p.target.x - c.x, dy = p.target.y - c.y;
-      const d = Math.hypot(dx,dy) || 1;
-      const s = speedFor(c.mass);
-      const f = Math.min(1, d / 50);
+      const dx = p.target.x - c.x;
+      const dy = p.target.y - c.y;
+      const d = Math.hypot(dx, dy) || 1;
+      
+      const baseSpeed = speedFor(c.mass);
+      const easeFactor = Math.min(1, d / 220); // Sanftes Abbremsen bei Zielerreichung
 
-      // Grundlegende Verfolgung des Mauszeigers (Reibungseffekt)
-      const targetVx = (dx / d) * s * f;
-      const targetVy = (dy / d) * s * f;
-      c.vx = (c.vx * 0.8) + targetVx * 0.2;
-      c.vy = (c.vy * 0.8) + targetVy * 0.2;
+      const targetVx = (dx / d) * baseSpeed * easeFactor;
+      const targetVy = (dy / d) * baseSpeed * easeFactor;
 
-      // Addition von regulärer Bewegung + aktivem Abschuss-Boost
+      // Senpa.io-style Interpolation für flüssiges Gleit-Feedback
+      c.vx = (c.vx * 0.76) + targetVx * 0.24;
+      c.vy = (c.vy * 0.76) + targetVy * 0.24;
+
+      // Kombination aus Gleitreibung und explosivem Schub-Impuls
       c.x += c.vx + c.boostX;
       c.y += c.vy + c.boostY;
 
-      // Exponentieller Boost-Zerfall (wichtig für das träge Ausgleiten)
-      c.boostX *= 0.90;
-      c.boostY *= 0.90;
-      if (Math.abs(c.boostX) < 0.05) c.boostX = 0;
-      if (Math.abs(c.boostY) < 0.05) c.boostY = 0;
+      // Exponentieller linearer Boost-Dämpfer (Wichtig gegen Ruckeln)
+      c.boostX *= 0.88;
+      c.boostY *= 0.88;
+      if (Math.abs(c.boostX) < 0.02) c.boostX = 0;
+      if (Math.abs(c.boostY) < 0.02) c.boostY = 0;
 
-      // Weltgrenzen-Kollision
+      // Hard-Border Collisions
       const r = massToRadius(c.mass);
-      if(c.x<r) { c.x=r; c.boostX = 0; } 
-      if(c.y<r) { c.y=r; c.boostY = 0; }
-      if(c.x>WORLD-r) { c.x=WORLD-r; c.boostX = 0; } 
-      if(c.y>WORLD-r) { c.y=WORLD-r; c.boostY = 0; }
+      if(c.x < r) { c.x = r; c.vx = 0; c.boostX = 0; }
+      if(c.y < r) { c.y = r; c.vy = 0; c.boostY = 0; }
+      if(c.x > WORLD - r) { c.x = WORLD - r; c.vx = 0; c.boostX = 0; }
+      if(c.y > WORLD - r) { c.y = WORLD - r; c.vy = 0; c.boostY = 0; }
     }
 
-    // Abstands- und Verschmelzungs-Validierung
-    for(const c of p.pieces){
-      if(!c.separated){
-        if(!c.splitPartner || !p.pieces.includes(c.splitPartner)){
-          c.separated = true;
-        } else {
-          const gap = Math.hypot(c.x-c.splitPartner.x, c.y-c.splitPartner.y);
-          const minGap = (massToRadius(c.mass)+massToRadius(c.splitPartner.mass)) * 1.10;
-          if(gap > minGap) c.separated = true;
-        }
-      }
-    }
-
-    // Interne Zellkollisionen / Starre Körper-Abstoßung (Zellen glitschen nicht ineinander)
-    for(let i=0;i<p.pieces.length;i++){
-      for(let j=i+1;j<p.pieces.length;j++){
+    // Rigidbody-Physics & Verschmelzungs-Handling
+    for(let i=0; i<p.pieces.length; i++){
+      for(let j=i+1; j<p.pieces.length; j++){
         const a = p.pieces[i];
         const b = p.pieces[j];
+        
         const ra = massToRadius(a.mass);
         const rb = massToRadius(b.mass);
-        const dx = b.x - a.x, dy = b.y - a.y;
-        const d = Math.hypot(dx,dy) || 0.01;
-        const bothReady = a.separated && b.separated;
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const d = Math.hypot(dx, dy) || 0.01;
+        
+        const canMerge = now > a.canMergeAfter && now > b.canMergeAfter;
 
-        if(bothReady && d < ra + rb){
+        if(canMerge && d < ra + rb * 0.4){
+          // Verschmelzen
           a.mass += b.mass;
-          p.pieces.splice(j,1);
+          a.canMergeAfter = now + 150; // Kurzzeit-Lock gegen Insta-Double Glitches
+          p.pieces.splice(j, 1);
           j--;
           continue;
         }
 
+        // Elastische, zelluläre Abstoßung bei Kontakt (Kein Überlappen)
         const overlap = (ra + rb) - d;
-        if(overlap > 0 && !bothReady){
-          // Sanfter, elastischer Schubeffekt, um Jitter (Zittern) zu verhindern
-          const nx = dx / d, ny = dy / d;
-          const pushForce = overlap * 0.45; 
-          a.x -= nx * pushForce;
-          a.y -= ny * pushForce;
-          b.x += nx * pushForce;
-          b.y += ny * pushForce;
+        if(overlap > 0){
+          const nx = dx / d;
+          const ny = dy / d;
+          // Drastisch geglätteter Rigid-Push
+          const push = overlap * 0.42;
+          a.x -= nx * push;
+          a.y -= ny * push;
+          b.x += nx * push;
+          b.y += ny * push;
         }
       }
     }
   }
 
   function splitPlayer(p){
+    if(p.pieces.length >= MAX_PIECES) return;
     const newPieces = [];
+
     for(const c of p.pieces){
       if(p.pieces.length + newPieces.length >= MAX_PIECES) break;
       if(c.mass < settings.minSplitMass) continue;
 
       const half = c.mass / 2;
       c.mass = half;
-      c.separated = false;
 
-      const dx = p.target.x - c.x, dy = p.target.y - c.y;
-      const d = Math.hypot(dx,dy) || 1;
+      const dx = p.target.x - c.x;
+      const dy = p.target.y - c.y;
+      const d = Math.hypot(dx, dy) || 1;
 
-      // Erschafft das exakte Vorwärtsschießen der neuen Zelle via Boost-Impuls
-      const np = makePiece(p, c.x, c.y, half);
-      np.boostX = (dx / d) * 26; 
-      np.boostY = (dy / d) * 26;
+      // Präziser, explosiver Katapult-Effekt in Blickrichtung
+      const speedBoost = 25;
+      const np = makePiece(p, c.x, c.y, half, (dx/d)*speedBoost, (dy/d)*speedBoost);
+      
+      const nextMerge = performance.now() + 6000 + (half * 0.15);
+      c.canMergeAfter = nextMerge;
+      np.canMergeAfter = nextMerge;
 
-      np.splitPartner = c; 
-      c.splitPartner = np;
       newPieces.push(np);
     }
     p.pieces.push(...newPieces);
   }
 
   function multiSplit(p, times){
-    let count = 0;
-    function go(){
-      if(count>=times) return;
-      splitPlayer(p);
-      count++;
-      if(count<times) setTimeout(go, 60);
-    }
-    go();
+    let c = 0;
+    const run = () => {
+      if(c >= times) return;
+      splitPlayer(p); c++;
+      if(c < times) setTimeout(run, 70);
+    };
+    run();
   }
 
   function ejectMass(p){
     for(const c of p.pieces){
-      if(c.mass < EJECT_MASS + 20) continue;
+      if(c.mass < EJECT_MASS + 24) continue;
       c.mass -= EJECT_MASS;
-      const dx = p.target.x - c.x, dy = p.target.y - c.y;
-      const d = Math.hypot(dx,dy)||1;
+      
+      const dx = p.target.x - c.x;
+      const dy = p.target.y - c.y;
+      const d = Math.hypot(dx, dy) || 1;
       const r = massToRadius(c.mass);
+
       ejected.push({
-        x: c.x + (dx/d) * r, y: c.y + (dy/d) * r,
-        vx: (dx/d) * 20, vy: (dy/d) * 20, // Ballistischer Auswurf-Impuls
-        mass: EJECT_MASS, color: p.color, life: 120
+        x: c.x + (dx/d) * r,
+        y: c.y + (dy/d) * r,
+        vx: (dx/d) * 22,
+        vy: (dy/d) * 22,
+        mass: EJECT_MASS,
+        color: p.color,
+        life: 140
       });
     }
   }
 
-  // Input bindings
+  // Bindings
   addEventListener('keydown', e => {
     if(!running || !me || me.dead) return;
     if(e.code === 'Space'){ e.preventDefault(); splitPlayer(me); }
@@ -577,26 +592,30 @@
   bindHoldButton(document.getElementById('btnTriple'), () => multiSplit(me, 3));
 
   // ---------------------------------------------------------------------
-  // COLLISION & GAME LOOPS
+  // LOGIC & VIRUS RULES PROCESSING (+130 EXP/SPLIT OVERHAUL)
   // ---------------------------------------------------------------------
   function eatFood(){
     for(const p of players){
       if(p.dead) continue;
       for(const c of p.pieces){
         const r = massToRadius(c.mass);
+        
+        // Futter
         for(let i=foods.length-1; i>=0; i--){
           const f = foods[i];
-          if((c.x-f.x)**2+(c.y-f.y)**2 < r*r){
+          if((c.x-f.x)**2 + (c.y-f.y)**2 < r*r){
             c.mass += f.mass;
             foods[i] = makeFood();
           }
         }
+
+        // Ausgeworfene Masse
         for(let i=ejected.length-1; i>=0; i--){
           const e = ejected[i];
-          if(e.life > 105) continue; // Kann nicht direkt im ersten Moment reabsorbiert werden
-          if((c.x-e.x)**2+(c.y-e.y)**2 < r*r){
+          if(e.life > 125) continue; // Kurzer Lockout gegen Direkt-Reabsorption
+          if((c.x-e.x)**2 + (c.y-e.y)**2 < r*r){
             c.mass += e.mass;
-            ejected.splice(i,1);
+            ejected.splice(i, 1);
           }
         }
       }
@@ -609,22 +628,42 @@
       for(let pi=0; pi<p.pieces.length; pi++){
         const c = p.pieces[pi];
         const r = massToRadius(c.mass);
+
         for(let vi=viruses.length-1; vi>=0; vi--){
           const v = viruses[vi];
-          const d2 = (c.x-v.x)**2+(c.y-v.y)**2;
-          if(c.mass > v.mass*1.15 && d2 < r*r){
-            viruses[vi] = makeVirus();
-            const slots = Math.min(MAX_PIECES - p.pieces.length, 6);
-            if(slots > 1){
-              const pieceMass = c.mass / (slots+1);
-              c.mass = pieceMass;
-              for(let k=0; k<slots; k++){
-                const ang = Math.random()*Math.PI*2;
-                const np = makePiece(p, c.x, c.y, pieceMass);
-                // Viren-Explosion schleudert Fragmente radial nach außen
-                np.boostX = Math.cos(ang) * 20; 
-                np.boostY = Math.sin(ang) * 20;
-                p.pieces.push(np);
+          const dist = Math.hypot(c.x - v.x, c.y - v.y);
+
+          // Trigger-Bedingung bei Kontakt
+          if(dist < r){
+            if(c.mass >= 130) {
+              // WUNSCH-IMPLEMENTIERUNG: Virus ist essbar, gibt +100 Masse, sprengt aber den Spieler auf!
+              c.mass += 100;
+              viruses[vi] = makeVirus(); // Respawn des Virus an neuer Position
+
+              // Explosions-Zerstückelung (Fragmentierung)
+              const maxSplits = Math.min(MAX_PIECES - p.pieces.length, 7);
+              if(maxSplits > 1){
+                const pieceMass = c.mass / (maxSplits + 1);
+                c.mass = pieceMass;
+                const baseMergeLock = performance.now() + 8000 + (pieceMass * 0.2);
+                c.canMergeAfter = baseMergeLock;
+
+                for(let k=0; k<maxSplits; k++){
+                  const ang = Math.random() * Math.PI * 2;
+                  const force = rand(15, 26);
+                  const np = makePiece(p, c.x, c.y, pieceMass, Math.cos(ang)*force, Math.sin(ang)*force);
+                  np.canMergeAfter = baseMergeLock;
+                  p.pieces.push(np);
+                }
+              }
+            } else {
+              // Kleiner als 130 Masse -> Virus verhält sich wie ein starrer, unpassierbarer Körper
+              const overlap = r + massToRadius(v.mass) * 0.6 - dist;
+              if (overlap > 0) {
+                const nx = (c.x - v.x) / (dist || 1);
+                const ny = (c.y - v.y) / (dist || 1);
+                c.x += nx * overlap * 0.8;
+                c.y += ny * overlap * 0.8;
               }
             }
           }
@@ -639,18 +678,20 @@
       for(const c of p.pieces){
         const r = massToRadius(c.mass);
         for(const q of players){
-          if(q===p||q.dead) continue;
+          if(q === p || q.dead) continue;
+          
           for(let i=q.pieces.length-1; i>=0; i--){
             const t = q.pieces[i];
-            if(c.mass < t.mass * 1.15) continue;
-            const d2 = (c.x-t.x)**2+(c.y-t.y)**2;
-            // 1zu1 Erfordernis: Das Zentrum des kleineren Blobs muss weit genug im Radius des größeren sein
-            if(d2 < (r - massToRadius(t.mass) * 0.35)**2){
+            if(c.mass < t.mass * 1.15) continue; // 15% Größenvorteil nötig
+            
+            const d2 = (c.x-t.x)**2 + (c.y-t.y)**2;
+            // Das Zentrum des kleineren Blobs muss tief genug eingedrungen sein
+            if(d2 < (r - massToRadius(t.mass) * 0.4)**2){
               c.mass += t.mass;
-              q.pieces.splice(i,1);
+              q.pieces.splice(i, 1);
             }
           }
-          if(q.pieces.length===0) q.dead = true;
+          if(q.pieces.length === 0) q.dead = true;
         }
       }
     }
@@ -658,11 +699,12 @@
 
   function applyMassDecay(dt){
     if(!settings.massDecay) return;
-    const rate = 0.002;
+    // Senpa-basierter progressiver Masseverlust (Zellen verlieren oberhalb von 100 Masse minimal Substanz)
+    const rate = 0.0025;
     for(const p of players){
       if(p.dead) continue;
       for(const c of p.pieces){
-        if(c.mass > 100){
+        if(c.mass > 120){
           c.mass -= c.mass * rate * (dt/1000);
         }
       }
@@ -671,54 +713,70 @@
 
   function respawnBots(){
     for(const p of players){
-      if(p===me) continue;
+      if(p === me) continue;
       if(p.dead){
-        const nb = makePlayer(BOT_NAMES[ri(BOT_NAMES.length)], true);
-        nb.pieces[0].mass = rand(20, 80);
+        const names = BOT_NAMES.slice().sort(()=>Math.random()-0.5);
+        const nb = makePlayer(names[ri(names.length)], true);
+        nb.pieces[0].mass = rand(22, 75);
         Object.assign(p, nb);
         p.dead = false;
       }
     }
   }
 
+  // ---------------------------------------------------------------------
+  // MAIN ENGINE CORE LOOPS & RENDERING
+  // ---------------------------------------------------------------------
   function step(dt){
     const now = performance.now();
+    
+    // Engine Step Updates
     for(const p of players){ if(p.isBot && !p.dead) updateBot(p, now); }
+    
     if(me && !me.dead){
       const c = playerCenter(me);
       const scale = getScale(me);
-      me.target.x = c.x + (mouse.x - W/2)/scale;
-      me.target.y = c.y + (mouse.y - H/2)/scale;
+      me.target.x = c.x + (mouse.x - W/2) / scale;
+      me.target.y = c.y + (mouse.y - H/2) / scale;
     }
+
     for(const p of players){ if(!p.dead) movePlayer(p); }
+
+    // Ejected Items Physics
     for(let i=ejected.length-1; i>=0; i--){
       const e = ejected[i];
       e.x += e.vx; e.y += e.vy;
-      e.vx *= 0.92; e.vy *= 0.92;
+      e.vx *= 0.90; e.vy *= 0.90;
       e.life--;
-      if(e.life<=0){
-        foods.push({ x:e.x, y:e.y, r:6, color:e.color, mass:e.mass });
-        ejected.splice(i,1);
+      if(e.life <= 0){
+        foods.push({ x: e.x, y: e.y, r: 5, color: e.color, mass: e.mass });
+        ejected.splice(i, 1);
       }
     }
-    eatFood(); virusHit(); eatPlayers();
+
+    eatFood(); 
+    virusHit(); 
+    eatPlayers();
     applyMassDecay(dt);
     respawnBots();
-    if(me && me.pieces.length===0){ me.dead = true; gameOver(); }
+
+    if(me && me.pieces.length === 0){ me.dead = true; gameOver(); }
   }
 
   function getScale(p){
     const m = playerMass(p);
-    return Math.min(1, Math.pow(25/m, 0.25)) * 1.15;
+    // Dynamischer Zoom-Out bei steigender Masse für perfekten Überblick
+    return Math.min(1, Math.pow(30 / m, 0.23)) * 1.12;
   }
 
   function drawGrid(camX, camY, scale){
-    ctx.strokeStyle = '#dcdcdc'; ctx.lineWidth = 1;
-    const step = 60;
+    ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 1;
+    const step = 75;
     const startX = Math.floor((camX - W/2/scale)/step)*step;
     const endX = camX + W/2/scale;
     const startY = Math.floor((camY - H/2/scale)/step)*step;
     const endY = camY + H/2/scale;
+    
     ctx.beginPath();
     for(let x=startX; x<endX; x+=step){
       const sx = (x-camX)*scale + W/2;
@@ -729,41 +787,50 @@
       ctx.moveTo(0,sy); ctx.lineTo(W,sy);
     }
     ctx.stroke();
-    ctx.strokeStyle = '#999'; ctx.lineWidth = 5;
-    ctx.strokeRect((0-camX)*scale+W/2,(0-camY)*scale+H/2,WORLD*scale,WORLD*scale);
+
+    // Map-Außengrenze (Rot/Grau markiert)
+    ctx.strokeStyle = '#e53935'; ctx.lineWidth = 6;
+    ctx.strokeRect((0-camX)*scale+W/2, (0-camY)*scale+H/2, WORLD*scale, WORLD*scale);
   }
 
   function draw(){
-    ctx.fillStyle = '#f5f5f5'; ctx.fillRect(0,0,W,H);
+    ctx.fillStyle = '#f8f9fa'; ctx.fillRect(0,0,W,H);
     if(!me) return;
+    
     const c = playerCenter(me);
     const scale = getScale(me);
     drawGrid(c.x, c.y, scale);
 
     const toScreen = (x,y) => [(x-c.x)*scale + W/2, (y-c.y)*scale + H/2];
 
+    // Render Food
     for(const f of foods){
-      const [sx,sy] = toScreen(f.x,f.y);
+      const [sx,sy] = toScreen(f.x, f.y);
       if(sx<-10||sy<-10||sx>W+10||sy>H+10) continue;
       ctx.fillStyle = f.color;
-      ctx.beginPath(); ctx.arc(sx,sy,f.r*scale,0,Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(sx, sy, f.r*scale, 0, Math.PI*2); ctx.fill();
     }
+
+    // Render Ejected Mass
     for(const e of ejected){
-      const [sx,sy] = toScreen(e.x,e.y);
+      const [sx,sy] = toScreen(e.x, e.y);
       ctx.fillStyle = e.color;
-      ctx.beginPath(); ctx.arc(sx,sy,massToRadius(e.mass)*scale,0,Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(sx, sy, massToRadius(e.mass)*scale, 0, Math.PI*2); ctx.fill();
     }
+
+    // Render Viruses (Gezackter Custom-Pfad für Pro-Optik)
     for(const v of viruses){
-      const [sx,sy] = toScreen(v.x,v.y);
+      const [sx,sy] = toScreen(v.x, v.y);
       const r = massToRadius(v.mass)*scale;
       if(sx<-r||sy<-r||sx>W+r||sy>H+r) continue;
+
       ctx.fillStyle = v.color;
-      ctx.strokeStyle = '#2d8c5d'; ctx.lineWidth = 3;
+      ctx.strokeStyle = '#1db954'; ctx.lineWidth = 3.5;
       ctx.beginPath();
-      const spikes = 22;
+      const spikes = 24;
       for(let i=0; i<spikes*2; i++){
         const ang = (i/(spikes*2))*Math.PI*2;
-        const rr = i%2===0 ? r : r*0.88;
+        const rr = i%2===0 ? r : r*0.86;
         const x = sx + Math.cos(ang)*rr;
         const y = sy + Math.sin(ang)*rr;
         if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
@@ -771,26 +838,35 @@
       ctx.closePath(); ctx.fill(); ctx.stroke();
     }
     
+    // Sorting & Render Player Cells
     const allPieces = [];
     for(const p of players){ if(!p.dead) for(const c of p.pieces) allPieces.push({p,c}); }
     allPieces.sort((a,b)=>a.c.mass-b.c.mass);
+
     for(const {p,c} of allPieces){
-      const [sx,sy] = toScreen(c.x,c.y);
+      const [sx,sy] = toScreen(c.x, c.y);
       const r = massToRadius(c.mass)*scale;
       if(sx<-r||sy<-r||sx>W+r||sy>H+r) continue;
+
+      // Schein nach Innen/Außen-Effekt
       ctx.fillStyle = p.color;
-      ctx.strokeStyle = 'rgba(0,0,0,.2)'; ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.arc(sx,sy,r,0,Math.PI*2); ctx.fill(); ctx.stroke();
-      const shouldLabel = (p===me || settings.showBotNames) && r>18;
+      ctx.strokeStyle = 'rgba(0,0,0,0.15)'; ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.arc(sx, sy, r, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+      
+      const shouldLabel = (p===me || settings.showBotNames) && r>16;
       if(shouldLabel){
-        ctx.fillStyle = '#fff'; ctx.strokeStyle='rgba(0,0,0,.7)'; ctx.lineWidth=3;
-        ctx.font = `bold ${Math.max(12,r*0.33)}px Arial`;
+        ctx.fillStyle = '#fff'; ctx.strokeStyle='rgba(0,0,0,0.75)'; ctx.lineWidth=3.5;
+        
+        // Name
+        ctx.font = `bold ${Math.max(12, r*0.30)}px Arial`;
         ctx.textAlign='center'; ctx.textBaseline='middle';
-        ctx.strokeText(p.name, sx, sy - r*0.12);
-        ctx.fillText(p.name, sx, sy - r*0.12);
-        ctx.font = `bold ${Math.max(10,r*0.23)}px Arial`;
-        ctx.strokeText(Math.floor(c.mass), sx, sy + r*0.28);
-        ctx.fillText(Math.floor(c.mass), sx, sy + r*0.28);
+        ctx.strokeText(p.name, sx, sy - r*0.10);
+        ctx.fillText(p.name, sx, sy - r*0.10);
+        
+        // Masse-Zahl
+        ctx.font = `bold ${Math.max(10, r*0.22)}px Arial`;
+        ctx.strokeText(Math.floor(c.mass), sx, sy + r*0.26);
+        ctx.fillText(Math.floor(c.mass), sx, sy + r*0.26);
       }
     }
   }
@@ -798,7 +874,7 @@
   function updateHud(){
     if(!me) return;
     massEl.textContent = Math.floor(playerMass(me));
-    const ranked = players.filter(p=>!p.dead).map(p=>({n:p.name,m:playerMass(p),me:p===me}))
+    const ranked = players.filter(p=>!p.dead).map(p=>({n:p.name, m:playerMass(p), me:p===me}))
       .sort((a,b)=>b.m-a.m).slice(0,10);
     lbList.innerHTML = ranked.map((r,i)=>
       `<div class="row"><span>${i+1}. ${r.me?'<b style="color:#ffd54f">'+r.n+'</b>':r.n}</span><span>${Math.floor(r.m)}</span></div>`
@@ -807,7 +883,7 @@
 
   let last = performance.now();
   function loop(t){
-    const dt = t-last; last = t;
+    const dt = Math.min(30, t-last); last = t; // Delta Capping gegen Tab-Wechsel-Explosionen
     if(running){ step(dt); draw(); updateHud(); }
     requestAnimationFrame(loop);
   }
@@ -816,8 +892,8 @@
   function gameOver(){
     running = false;
     title.textContent = 'Game Over';
-    subtitle.textContent = 'Du wurdest gefressen! Endmasse: ' + Math.floor(me ? playerMass(me)||0 : 0);
-    playBtn.textContent = 'Nochmal spielen';
+    subtitle.textContent = 'Du wurdest ein Teil der Nahrungskette! Score: ' + Math.floor(me ? playerMass(me)||0 : 0);
+    playBtn.textContent = 'Erneut versuchen';
     overlay.style.display = 'flex';
   }
 
