@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<title>Blob.io Offline</title>
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;background:#111;font-family:Arial,sans-serif;color:#fff}
+  canvas{display:block;background:#f5f5f5}
+  #hud{position:fixed;top:10px;left:10px;background:rgba(0,0,0,.5);padding:8px 12px;border-radius:6px;font-size:14px}
+  #leaderboard{position:fixed;top:10px;right:10px;background:rgba(0,0,0,.5);padding:8px 12px;border-radius:6px;font-size:13px;min-width:160px}
+  #leaderboard h3{margin:0 0 4px;font-size:14px;color:#ffd54f}
+  #overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.7);z-index:10}
+  #overlay .box{background:#222;padding:24px 32px;border-radius:10px;text-align:center;box-shadow:0 8px 30px rgba(0,0,0,.5)}
+  #overlay input{padding:8px;font-size:16px;border-radius:4px;border:none;width:200px;margin:8px 0;text-align:center}
+  #overlay button{padding:8px 20px;font-size:16px;background:#4caf50;border:none;color:#fff;border-radius:4px;cursor:pointer;margin-top:8px}
+  #overlay button:hover{background:#43a047}
+  .row{display:flex;justify-content:space-between;gap:10px}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="hud">Masse: <span id="mass">0</span></div>
+<div id="leaderboard"><h3>Bestenliste</h3><div id="lblist"></div></div>
+<div id="overlay">
+  <div class="box">
+    <h2 id="title">Blob.io Offline</h2>
+    <p id="subtitle">Gib deinen Namen ein und spiele!</p>
+    <div><input id="name" maxlength="16" placeholder="Dein Name" value="Spieler"/></div>
+    <button id="play">Spielen</button>
+    <p style="font-size:12px;opacity:.7;margin-top:14px">Maus = bewegen · Leertaste = teilen · W = Masse abwerfen</p>
+  </div>
+</div>
+<script>
+(() => {
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const overlay = document.getElementById('overlay');
+  const title = document.getElementById('title');
+  const subtitle = document.getElementById('subtitle');
+  const playBtn = document.getElementById('play');
+  const nameInput = document.getElementById('name');
+  const massEl = document.getElementById('mass');
+  const lbList = document.getElementById('lblist');
+
+  const WORLD = 6000;
+  const FOOD_COUNT = 800;
+  const VIRUS_COUNT = 25;
+  const BOT_COUNT = 18;
+  const MIN_SPLIT_MASS = 35;
+  const EJECT_MASS = 16;
+  const MAX_PIECES = 16;
+
+  const COLORS = ['#e53935','#fb8c00','#fdd835','#43a047','#1e88e5','#5e35b1','#d81b60','#00897b','#3949ab','#7cb342'];
+  const BOT_NAMES = ['Anna','Tom','Lisa','Max','Eva','Leo','Mia','Ben','Lia','Ole','Jan','Kai','Noa','Pia','Sam','Tim','Una','Vik','Wim','Zoe'];
+
+  let W = innerWidth, H = innerHeight;
+  function resize(){ W = innerWidth; H = innerHeight; canvas.width = W; canvas.height = H; }
+  addEventListener('resize', resize); resize();
+
+  const mouse = { x: W/2, y: H/2 };
+  addEventListener('mousemove', e => { mouse.x = e.clientX; mouse.y = e.clientY; });
+  addEventListener('touchmove', e => { if(e.touches[0]){ mouse.x=e.touches[0].clientX; mouse.y=e.touches[0].clientY; } }, {passive:true});
+
+  const rand = (a,b) => a + Math.random()*(b-a);
+  const ri = n => Math.floor(Math.random()*n);
+  const dist2 = (a,b) => { const dx=a.x-b.x, dy=a.y-b.y; return dx*dx+dy*dy; };
+  const massToRadius = m => Math.sqrt(m) * 4;
+  const speedFor = m => Math.max(0.8, 6 - Math.log(m) * 0.6);
+
+  let foods = [], viruses = [], players = [], ejected = [];
+  let me = null;
+  let running = false;
+
+  function makeFood(){
+    return { x: rand(0,WORLD), y: rand(0,WORLD), r: 6, color: COLORS[ri(COLORS.length)], mass: 1 };
+  }
+  function makeVirus(){
+    return { x: rand(0,WORLD), y: rand(0,WORLD), mass: 120, color: '#33d17a', virus: true };
+  }
+  function makePiece(player, x, y, mass){
+    return { x, y, mass, vx:0, vy:0, mergeAt: performance.now() + 12000, player };
+  }
+  function makePlayer(name, isBot){
+    const color = COLORS[ri(COLORS.length)];
+    const p = { name, color, isBot, dead:false, pieces:[], target:{x:WORLD/2,y:WORLD/2} };
+    const x = rand(200,WORLD-200), y = rand(200,WORLD-200);
+    p.pieces.push(makePiece(p, x, y, 20));
+    p.target.x = x; p.target.y = y;
+    return p;
+  }
+
+  function init(name){
+    foods = []; viruses = []; players = []; ejected = [];
+    for(let i=0;i<FOOD_COUNT;i++) foods.push(makeFood());
+    for(let i=0;i<VIRUS_COUNT;i++) viruses.push(makeVirus());
+    me = makePlayer(name || 'Spieler', false);
+    players.push(me);
+    for(let i=0;i<BOT_COUNT;i++){
+      const b = makePlayer(BOT_NAMES[i%BOT_NAMES.length], true);
+      b.pieces[0].mass = rand(20, 150);
+      players.push(b);
+    }
+  }
+
+  function playerMass(p){ return p.pieces.reduce((s,c)=>s+c.mass,0); }
+  function playerCenter(p){
+    let x=0,y=0,m=0;
+    for(const c of p.pieces){ x+=c.x*c.mass; y+=c.y*c.mass; m+=c.mass; }
+    return { x:x/m, y:y/m };
+  }
+
+  function updateBot(b){
+    const c = playerCenter(b);
+    // find nearest food / smaller player
+    let best = null, bestD = Infinity;
+    for(let i=0;i<60;i++){
+      const f = foods[ri(foods.length)];
+      const d = (f.x-c.x)**2+(f.y-c.y)**2;
+      if(d<bestD){ bestD=d; best=f; }
+    }
+    for(const p of players){
+      if(p===b||p.dead) continue;
+      const pc = playerCenter(p), pm = playerMass(p), bm = playerMass(b);
+      const d = (pc.x-c.x)**2+(pc.y-c.y)**2;
+      if(pm < bm*0.8 && d < 400*400 && d < bestD){ bestD=d; best=pc; }
+      else if(pm > bm*1.25 && d < 350*350){
+        best = { x: c.x - (pc.x-c.x), y: c.y - (pc.y-c.y) };
+        bestD = 0;
+      }
+    }
+    if(best){ b.target.x = best.x; b.target.y = best.y; }
+  }
+
+  function movePlayer(p){
+    for(const c of p.pieces){
+      const dx = p.target.x - c.x, dy = p.target.y - c.y;
+      const d = Math.hypot(dx,dy) || 1;
+      const s = speedFor(c.mass);
+      const f = Math.min(1, d/50);
+      c.vx = (c.vx*0.7) + (dx/d)*s*f*0.3;
+      c.vy = (c.vy*0.7) + (dy/d)*s*f*0.3;
+      c.x += c.vx; c.y += c.vy;
+      const r = massToRadius(c.mass);
+      if(c.x<r) c.x=r; if(c.y<r) c.y=r;
+      if(c.x>WORLD-r) c.x=WORLD-r; if(c.y>WORLD-r) c.y=WORLD-r;
+    }
+    // keep own pieces from overlapping (push apart unless merge ready)
+    const now = performance.now();
+    for(let i=0;i<p.pieces.length;i++){
+      for(let j=i+1;j<p.pieces.length;j++){
+        const a=p.pieces[i], b=p.pieces[j];
+        const ra=massToRadius(a.mass), rb=massToRadius(b.mass);
+        const dx=b.x-a.x, dy=b.y-a.y;
+        const d=Math.hypot(dx,dy)||0.01;
+        if(a.mergeAt<=now && b.mergeAt<=now && d < (ra+rb)*0.6){
+          a.mass += b.mass; p.pieces.splice(j,1); j--; continue;
+        }
+        const overlap = ra+rb - d;
+        if(overlap>0){
+          const nx=dx/d, ny=dy/d;
+          a.x -= nx*overlap*0.5; a.y -= ny*overlap*0.5;
+          b.x += nx*overlap*0.5; b.y += ny*overlap*0.5;
+        }
+      }
+    }
+  }
+
+  function splitPlayer(p){
+    const now = performance.now();
+    const newPieces = [];
+    for(const c of p.pieces){
+      if(p.pieces.length + newPieces.length >= MAX_PIECES) break;
+      if(c.mass < MIN_SPLIT_MASS) continue;
+      const half = c.mass/2;
+      c.mass = half;
+      const dx = p.target.x - c.x, dy = p.target.y - c.y;
+      const d = Math.hypot(dx,dy)||1;
+      const np = makePiece(p, c.x, c.y, half);
+      np.vx = dx/d * 18; np.vy = dy/d * 18;
+      np.mergeAt = now + 12000;
+      c.mergeAt = now + 12000;
+      newPieces.push(np);
+    }
+    p.pieces.push(...newPieces);
+  }
+
+  function ejectMass(p){
+    for(const c of p.pieces){
+      if(c.mass < EJECT_MASS + 20) continue;
+      c.mass -= EJECT_MASS;
+      const dx = p.target.x - c.x, dy = p.target.y - c.y;
+      const d = Math.hypot(dx,dy)||1;
+      const r = massToRadius(c.mass);
+      ejected.push({
+        x: c.x + dx/d * r, y: c.y + dy/d * r,
+        vx: dx/d * 22, vy: dy/d * 22,
+        mass: EJECT_MASS, color: p.color, life: 400
+      });
+    }
+  }
+
+  addEventListener('keydown', e => {
+    if(!running || !me || me.dead) return;
+    if(e.code === 'Space'){ e.preventDefault(); splitPlayer(me); }
+    else if(e.code === 'KeyW') ejectMass(me);
+  });
+
+  function eatFood(){
+    for(const p of players){
+      if(p.dead) continue;
+      for(const c of p.pieces){
+        const r = massToRadius(c.mass);
+        for(let i=foods.length-1;i>=0;i--){
+          const f = foods[i];
+          if((c.x-f.x)**2+(c.y-f.y)**2 < r*r){
+            c.mass += f.mass;
+            foods[i] = makeFood();
+          }
+        }
+        for(let i=ejected.length-1;i>=0;i--){
+          const e = ejected[i];
+          if(e.life>350) continue; // brief delay before eatable
+          if((c.x-e.x)**2+(c.y-e.y)**2 < r*r){
+            c.mass += e.mass;
+            ejected.splice(i,1);
+          }
+        }
+      }
+    }
+  }
+
+  function virusHit(){
+    for(const p of players){
+      if(p.dead) continue;
+      for(let pi=0; pi<p.pieces.length; pi++){
+        const c = p.pieces[pi];
+        const r = massToRadius(c.mass);
+        for(let vi=viruses.length-1; vi>=0; vi--){
+          const v = viruses[vi];
+          const vr = massToRadius(v.mass);
+          const d2 = (c.x-v.x)**2+(c.y-v.y)**2;
+          if(c.mass > v.mass*1.15 && d2 < r*r){
+            // explode
+            viruses[vi] = makeVirus();
+            const slots = Math.min(MAX_PIECES - p.pieces.length, 6);
+            if(slots > 1){
+              const piece = c.mass / (slots+1);
+              c.mass = piece;
+              for(let k=0;k<slots;k++){
+                const ang = Math.random()*Math.PI*2;
+                const np = makePiece(p, c.x, c.y, piece);
+                np.vx = Math.cos(ang)*15; np.vy = Math.sin(ang)*15;
+                np.mergeAt = performance.now() + 15000;
+                p.pieces.push(np);
+              }
+              c.mergeAt = performance.now() + 15000;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  function eatPlayers(){
+    for(const p of players){
+      if(p.dead) continue;
+      for(const c of p.pieces){
+        const r = massToRadius(c.mass);
+        for(const q of players){
+          if(q===p||q.dead) continue;
+          for(let i=q.pieces.length-1;i>=0;i--){
+            const t = q.pieces[i];
+            if(c.mass < t.mass*1.15) continue;
+            const d2 = (c.x-t.x)**2+(c.y-t.y)**2;
+            if(d2 < r*r * 0.8){
+              c.mass += t.mass;
+              q.pieces.splice(i,1);
+            }
+          }
+          if(q.pieces.length===0) q.dead = true;
+        }
+      }
+    }
+  }
+
+  function respawnBots(){
+    for(const p of players){
+      if(p===me) continue;
+      if(p.dead){
+        const nb = makePlayer(BOT_NAMES[ri(BOT_NAMES.length)], true);
+        nb.pieces[0].mass = rand(20, 80);
+        Object.assign(p, nb);
+        p.dead = false;
+      }
+    }
+  }
+
+  function step(dt){
+    // bots think
+    for(const p of players){ if(p.isBot && !p.dead) updateBot(p); }
+    // player target = world coords under mouse
+    if(me && !me.dead){
+      const c = playerCenter(me);
+      const scale = getScale(me);
+      me.target.x = c.x + (mouse.x - W/2)/scale;
+      me.target.y = c.y + (mouse.y - H/2)/scale;
+    }
+    for(const p of players){ if(!p.dead) movePlayer(p); }
+    // ejected
+    for(let i=ejected.length-1;i>=0;i--){
+      const e = ejected[i];
+      e.x += e.vx; e.y += e.vy;
+      e.vx *= 0.94; e.vy *= 0.94;
+      e.life--;
+      if(e.life<=0){
+        foods.push({ x:e.x, y:e.y, r:6, color:e.color, mass:e.mass });
+        ejected.splice(i,1);
+      }
+    }
+    eatFood(); virusHit(); eatPlayers();
+    respawnBots();
+    if(me && me.pieces.length===0){ me.dead = true; gameOver(); }
+  }
+
+  function getScale(p){
+    const m = playerMass(p);
+    return Math.min(1, Math.pow(20/m, 0.3)) * 1.2;
+  }
+
+  function drawGrid(camX, camY, scale){
+    ctx.strokeStyle = '#dcdcdc'; ctx.lineWidth = 1;
+    const step = 50;
+    const startX = Math.floor((camX - W/2/scale)/step)*step;
+    const endX = camX + W/2/scale;
+    const startY = Math.floor((camY - H/2/scale)/step)*step;
+    const endY = camY + H/2/scale;
+    ctx.beginPath();
+    for(let x=startX; x<endX; x+=step){
+      const sx = (x-camX)*scale + W/2;
+      ctx.moveTo(sx,0); ctx.lineTo(sx,H);
+    }
+    for(let y=startY; y<endY; y+=step){
+      const sy = (y-camY)*scale + H/2;
+      ctx.moveTo(0,sy); ctx.lineTo(W,sy);
+    }
+    ctx.stroke();
+    // world border
+    ctx.strokeStyle = '#888'; ctx.lineWidth = 4;
+    ctx.strokeRect((0-camX)*scale+W/2,(0-camY)*scale+H/2,WORLD*scale,WORLD*scale);
+  }
+
+  function draw(){
+    ctx.fillStyle = '#f5f5f5'; ctx.fillRect(0,0,W,H);
+    if(!me) return;
+    const c = playerCenter(me);
+    const scale = getScale(me);
+    drawGrid(c.x, c.y, scale);
+
+    const toScreen = (x,y) => [(x-c.x)*scale + W/2, (y-c.y)*scale + H/2];
+
+    // food
+    for(const f of foods){
+      const [sx,sy] = toScreen(f.x,f.y);
+      if(sx<-10||sy<-10||sx>W+10||sy>H+10) continue;
+      ctx.fillStyle = f.color;
+      ctx.beginPath(); ctx.arc(sx,sy,f.r*scale,0,Math.PI*2); ctx.fill();
+    }
+    // ejected
+    for(const e of ejected){
+      const [sx,sy] = toScreen(e.x,e.y);
+      ctx.fillStyle = e.color;
+      ctx.beginPath(); ctx.arc(sx,sy,massToRadius(e.mass)*scale,0,Math.PI*2); ctx.fill();
+    }
+    // viruses
+    for(const v of viruses){
+      const [sx,sy] = toScreen(v.x,v.y);
+      const r = massToRadius(v.mass)*scale;
+      if(sx<-r||sy<-r||sx>W+r||sy>H+r) continue;
+      ctx.fillStyle = v.color;
+      ctx.strokeStyle = '#2d8c5d'; ctx.lineWidth = 3;
+      ctx.beginPath();
+      const spikes = 22;
+      for(let i=0;i<spikes*2;i++){
+        const ang = (i/(spikes*2))*Math.PI*2;
+        const rr = i%2===0 ? r : r*0.88;
+        const x = sx + Math.cos(ang)*rr;
+        const y = sy + Math.sin(ang)*rr;
+        if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+      }
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+    }
+    // pieces sorted by mass
+    const allPieces = [];
+    for(const p of players){ if(!p.dead) for(const c of p.pieces) allPieces.push({p,c}); }
+    allPieces.sort((a,b)=>a.c.mass-b.c.mass);
+    for(const {p,c} of allPieces){
+      const [sx,sy] = toScreen(c.x,c.y);
+      const r = massToRadius(c.mass)*scale;
+      if(sx<-r||sy<-r||sx>W+r||sy>H+r) continue;
+      ctx.fillStyle = p.color;
+      ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(sx,sy,r,0,Math.PI*2); ctx.fill(); ctx.stroke();
+      // name + mass
+      if(r>18){
+        ctx.fillStyle = '#fff'; ctx.strokeStyle='rgba(0,0,0,.7)'; ctx.lineWidth=3;
+        ctx.font = `bold ${Math.max(12,r*0.35)}px Arial`;
+        ctx.textAlign='center'; ctx.textBaseline='middle';
+        ctx.strokeText(p.name, sx, sy - r*0.15);
+        ctx.fillText(p.name, sx, sy - r*0.15);
+        ctx.font = `bold ${Math.max(10,r*0.25)}px Arial`;
+        ctx.strokeText(Math.floor(c.mass), sx, sy + r*0.25);
+        ctx.fillText(Math.floor(c.mass), sx, sy + r*0.25);
+      }
+    }
+  }
+
+  function updateHud(){
+    if(!me) return;
+    massEl.textContent = Math.floor(playerMass(me));
+    const ranked = players.filter(p=>!p.dead).map(p=>({n:p.name,m:playerMass(p),me:p===me}))
+      .sort((a,b)=>b.m-a.m).slice(0,10);
+    lbList.innerHTML = ranked.map((r,i)=>
+      `<div class="row"><span>${i+1}. ${r.me?'<b style="color:#ffd54f">'+r.n+'</b>':r.n}</span><span>${Math.floor(r.m)}</span></div>`
+    ).join('');
+  }
+
+  let last = performance.now();
+  function loop(t){
+    const dt = t-last; last = t;
+    if(running){ step(dt); draw(); updateHud(); }
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+  function gameOver(){
+    running = false;
+    title.textContent = 'Game Over';
+    subtitle.textContent = 'Du wurdest gefressen! Endmasse: ' + Math.floor(me ? playerMass(me)||0 : 0);
+    playBtn.textContent = 'Nochmal spielen';
+    overlay.style.display = 'flex';
+  }
+
+  playBtn.addEventListener('click', () => {
+    init(nameInput.value.trim() || 'Spieler');
+    overlay.style.display = 'none';
+    running = true;
+  });
+})();
+</script>
+</body>
+</html>
