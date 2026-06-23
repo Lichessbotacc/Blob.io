@@ -68,7 +68,7 @@
 <div id="overlay">
   <div class="box">
     <h2>Blob.io Offline</h2>
-    <p style="color:#aaa;font-size:14px;">Modus: <b>Instant Merge (1zu1)</b></p>
+    <p style="color:#aaa;font-size:14px;">Modus: <b>True Instant Merge</b></p>
     <div><input id="name" maxlength="15" placeholder="Dein Name" value="Spieler"/></div>
     <div><button class="primary" id="play">Spielen</button></div>
     <p style="font-size:12px;opacity:.7;margin-top:14px">Maus = Bewegen · Leertaste = Split · W = Auswerfen<br>D = Double Split · T = Triple Split</p>
@@ -127,9 +127,6 @@
   const closeSettingsBtn = document.getElementById('closeSettings');
   const openSettingsFromMenu = document.getElementById('openSettingsFromMenu');
 
-  // ---------------------------------------------------------------------
-  // BLOB.IO SETTINGS
-  // ---------------------------------------------------------------------
   const DEFAULT_SETTINGS = {
     foodCount: 900,
     virusCount: 30,
@@ -145,36 +142,28 @@
   function applyTouchMode(){ document.body.classList.toggle('touch-mode', settings.forceTouchControls || isTouchDevice()); }
 
   function bindRange(id, key){
-    const el = document.getElementById(id);
-    const valEl = document.getElementById(id + 'Val');
+    const el = document.getElementById(id); const valEl = document.getElementById(id + 'Val');
     el.value = settings[key]; valEl.textContent = settings[key];
     el.addEventListener('input', () => { settings[key] = Number(el.value); valEl.textContent = settings[key]; });
   }
   function bindToggle(id, key, onChange){
     const el = document.getElementById(id);
     function render(){ el.classList.toggle('on', !!settings[key]); }
-    render();
-    el.addEventListener('click', () => { settings[key] = !settings[key]; render(); if(onChange) onChange(); });
+    render(); el.addEventListener('click', () => { settings[key] = !settings[key]; render(); if(onChange) onChange(); });
   }
 
-  bindRange('optFoodCount', 'foodCount');
-  bindRange('optVirusCount', 'virusCount');
-  bindRange('optBotCount', 'botCount');
-  bindRange('optMinSplit', 'minSplitMass');
-  bindToggle('optMassDecayToggle', 'massDecay');
-  bindToggle('optTouchToggle', 'forceTouchControls', applyTouchMode);
+  bindRange('optFoodCount', 'foodCount'); bindRange('optVirusCount', 'virusCount');
+  bindRange('optBotCount', 'botCount'); bindRange('optMinSplit', 'minSplitMass');
+  bindToggle('optMassDecayToggle', 'massDecay'); bindToggle('optTouchToggle', 'forceTouchControls', applyTouchMode);
 
   settingsBtn.addEventListener('click', () => settingsPanel.style.display = 'flex');
   closeSettingsBtn.addEventListener('click', () => settingsPanel.style.display = 'none');
   openSettingsFromMenu.addEventListener('click', e => { e.preventDefault(); settingsPanel.style.display = 'flex'; });
   applyTouchMode();
 
-  // ---------------------------------------------------------------------
-  // BLOB.IO ENGINE MATH
-  // ---------------------------------------------------------------------
   const WORLD = 5000;
   const EJECT_MASS = 15;
-  const MAX_PIECES = 32;
+  const MAX_PIECES = 16;
   const VIRUS_MASS = 100;
 
   const COLORS = ['#e53935','#fb8c00','#fdd835','#43a047','#1e88e5','#5e35b1','#d81b60','#00897b','#3949ab','#7cb342'];
@@ -187,7 +176,6 @@
   const mouse = { x: W/2, y: H/2 };
   addEventListener('mousemove', e => { mouse.x = e.clientX; mouse.y = e.clientY; });
   
-  // Touch-Controls lenken
   let moveTouchId = null;
   canvas.addEventListener('touchstart', e => {
     for(const t of e.changedTouches){ if(moveTouchId === null){ moveTouchId = t.identifier; mouse.x = t.clientX; mouse.y = t.clientY; } }
@@ -202,7 +190,6 @@
   const rand = (a,b) => a + Math.random()*(b-a);
   const ri = n => Math.floor(Math.random()*n);
   
-  // Original-Formeln für exakten Radius & träge Geschwindigkeit je nach Masse
   const massToRadius = m => Math.sqrt(m) * 4.2;
   const speedFor = m => 2.2 * Math.pow(m, -0.22) * 4.0;
 
@@ -212,8 +199,9 @@
   function makeFood(){ return { x: rand(15,WORLD-15), y: rand(15,WORLD-15), r: 5, color: COLORS[ri(COLORS.length)], mass: 1 }; }
   function makeVirus(){ return { x: rand(200,WORLD-200), y: rand(200,WORLD-200), mass: VIRUS_MASS, color: '#33d17a' }; }
 
-  function makePiece(player, x, y, mass, bX = 0, bY = 0){
-    return { x, y, mass, boostX: bX, boostY: bY, player };
+  // mergeTimer in Millisekunden! (Framerate-unabhängig)
+  function makePiece(player, x, y, mass, bX = 0, bY = 0, mergeTimer = 0){
+    return { x, y, mass, boostX: bX, boostY: bY, player, mergeTimer };
   }
   
   function makePlayer(name, isBot){
@@ -247,18 +235,12 @@
   }
   const largestPiece = p => p.pieces.reduce((a,b)=> b.mass>a.mass? b:a, p.pieces[0]);
 
-  // ---------------------------------------------------------------------
-  // ORIGINAL BLOB.IO ROBOT AI (PRO-BEHAVIOR)
-  // ---------------------------------------------------------------------
   function updateBot(b, now){
     if(now < b.nextAI) return;
     b.nextAI = now + rand(50, 120);
 
-    const c = playerCenter(b);
-    const bMass = playerMass(b);
-    const myLargest = largestPiece(b);
+    const c = playerCenter(b); const bMass = playerMass(b); const myLargest = largestPiece(b);
 
-    // STRATEGIE: Unter 130 Masse -> Punkte fressen & kleine Spieler jagen
     if (bMass < 130) {
       let targetPlayer = null, pDist = 1000;
       for(const p of players){
@@ -269,12 +251,9 @@
           if(d < pDist) { pDist = d; targetPlayer = pm; }
         }
       }
-
       if(targetPlayer){
         b.target.x = targetPlayer.x; b.target.y = targetPlayer.y;
-        if(pDist < 280 && myLargest.mass > targetPlayer.mass * 2.3 && b.pieces.length < 4){
-          splitPlayer(b); return;
-        }
+        if(pDist < 280 && myLargest.mass > targetPlayer.mass * 2.3 && b.pieces.length < 4){ splitPlayer(b); return; }
       } else {
         let bestF = null, bestFD = Infinity;
         for(let i=0; i<30; i++){
@@ -284,9 +263,7 @@
         }
         if(bestF){ b.target.x = bestF.x; b.target.y = bestF.y; }
       }
-    } 
-    // STRATEGIE: Ab 130 Masse -> Gezielt Viren fressen für Massen-Boost (+100)
-    else {
+    } else {
       let targetVirus = null, vDist = 1200;
       for(const v of viruses){
         const d = Math.hypot(v.x - c.x, v.y - c.y);
@@ -295,7 +272,6 @@
       if(targetVirus){
         b.target.x = targetVirus.x; b.target.y = targetVirus.y;
       } else {
-        // Fallback: Normales Jagen
         let prey = null, dMin = 1200;
         for(const p of players){
           if(p===b||p.dead) continue;
@@ -312,46 +288,40 @@
       }
     }
 
-    // Flucht vor Giganten
     for(const p of players){
       if(p === b || p.dead) continue;
       const pm = largestPiece(p);
       if(pm.mass > myLargest.mass * 1.2){
         if(Math.hypot(pm.x - c.x, pm.y - c.y) < 450 + massToRadius(pm.mass)){
-          b.target.x = c.x + (c.x - pm.x) * 2;
-          b.target.y = c.y + (c.y - pm.y) * 2;
-          break;
+          b.target.x = c.x + (c.x - pm.x) * 2; b.target.y = c.y + (c.y - pm.y) * 2; break;
         }
       }
     }
 
-    // Wand-Korrektur
     if(c.x < 150) b.target.x += 300; if(c.x > WORLD-150) b.target.x -= 300;
     if(c.y < 150) b.target.y += 300; if(c.y > WORLD-150) b.target.y -= 300;
   }
 
   // ---------------------------------------------------------------------
-  // DIRECT BLOB.IO PHYSICAL MOVEMENT ENGINE (1ZU1)
+  // TRUE INSTANT MERGE PHYSICS
   // ---------------------------------------------------------------------
-  function movePlayer(p){
+  function movePlayer(p, dt){
     for(const c of p.pieces){
-      const dx = p.target.x - c.x;
-      const dy = p.target.y - c.y;
+      // Cooldown-Timer für das Zusammenwachsen runterzählen
+      if(c.mergeTimer > 0) c.mergeTimer = Math.max(0, c.mergeTimer - dt);
+
+      const dx = p.target.x - c.x; const dy = p.target.y - c.y;
       const d = Math.hypot(dx, dy) || 1;
-      
       const speed = speedFor(c.mass);
       
-      // 1zu1 Direkte Steuerung: Keine künstliche Reibung/Verzögerung beim Folgen der Maus!
       const moveDist = Math.min(speed, d * 0.15);
       c.x += (dx / d) * moveDist + c.boostX;
       c.y += (dy / d) * moveDist + c.boostY;
 
-      // Split-Boost klingt schnell ab (explosiver Vorwärtsstoß)
       c.boostX *= 0.85; c.boostY *= 0.85;
       if (Math.abs(c.boostX) < 0.1) c.boostX = 0;
       if (Math.abs(c.boostY) < 0.1) c.boostY = 0;
 
-      // Spielfeldgrenzen kollidieren
       const r = massToRadius(c.mass);
       if(c.x < r) { c.x = r; c.boostX = 0; }
       if(c.y < r) { c.y = r; c.boostY = 0; }
@@ -359,36 +329,37 @@
       if(c.y > WORLD - r) { c.y = WORLD - r; c.boostY = 0; }
     }
 
-    // INSTANT MERGE PHYSIK: Interne Zell-Kollision & sofortiges Zusammenfügen
+    // Zell-Interaktion
     for(let i=0; i<p.pieces.length; i++){
       for(let j=i+1; j<p.pieces.length; j++){
-        const a = p.pieces[i];
-        const b = p.pieces[j];
-        
-        const ra = massToRadius(a.mass);
-        const rb = massToRadius(b.mass);
-        const dx = b.x - a.x;
-        const dy = b.y - a.y;
+        const a = p.pieces[i]; const b = p.pieces[j];
+        const ra = massToRadius(a.mass); const rb = massToRadius(b.mass);
+        const dx = b.x - a.x; const dy = b.y - a.y;
         const d = Math.hypot(dx, dy) || 0.01;
 
-        // Bedingungen für Instant Merge: Wenn der akute Vorwärtsstoß (Boost) vorbei ist, verschmelzen sie SOFORT
-        const aReady = Math.hypot(a.boostX, a.boostY) < 4;
-        const bReady = Math.hypot(b.boostX, b.boostY) < 4;
-
-        if(aReady && bReady && d < ra + rb * 0.5){
-          a.mass += b.mass;
-          p.pieces.splice(j, 1);
-          j--;
-          continue;
+        // MAGNET-SNAP FUSION: 
+        // Wenn bei BEIDEN Zellen der 180ms-Timer auf 0 steht und sich die Hüllen berühren -> Sofort einsaugen!
+        if(a.mergeTimer === 0 && b.mergeTimer === 0){
+          if(d < ra + rb){
+            // Die größere Zelle schluckt die kleinere
+            if(a.mass >= b.mass){
+              a.mass += b.mass; p.pieces.splice(j, 1); j--;
+            } else {
+              b.mass += a.mass; p.pieces.splice(i, 1); i--; break;
+            }
+            continue;
+          }
         }
 
-        // Starr-Körper-Abstoßung solange Zellen noch fliegen (Boost aktiv)
+        // Solange der Timer noch läuft (Zellen fliegen frisch auseinander): Bouncing-Ball Abstoßung
         const overlap = (ra + rb) - d;
         if(overlap > 0){
           const nx = dx / d; const ny = dy / d;
-          const push = overlap * 0.5;
-          a.x -= nx * push; a.y -= ny * push;
-          b.x += nx * push; b.y += ny * push;
+          const mSum = a.mass + b.mass;
+          const pushA = overlap * (b.mass / mSum) * 0.6;
+          const pushB = overlap * (a.mass / mSum) * 0.6;
+          a.x -= nx * pushA; a.y -= ny * pushA;
+          b.x += nx * pushB; b.y += ny * pushB;
         }
       }
     }
@@ -402,16 +373,16 @@
       if(p.pieces.length + newPieces.length >= MAX_PIECES) break;
       if(c.mass < settings.minSplitMass) continue;
 
-      const half = c.mass / 2;
-      c.mass = half;
-
-      const dx = p.target.x - c.x;
-      const dy = p.target.y - c.y;
+      const half = c.mass / 2; c.mass = half;
+      const dx = p.target.x - c.x; const dy = p.target.y - c.y;
       const d = Math.hypot(dx, dy) || 1;
 
-      // 1zu1 Katapult-Impuls
-      const speedBoost = 26;
-      const np = makePiece(p, c.x, c.y, half, (dx/d)*speedBoost, (dy/d)*speedBoost);
+      // Echte Agario-Schubkraft (skaliert mit der Größe der Zelle!)
+      const speedBoost = 22 + (massToRadius(half) * 0.35);
+
+      // BEIDE Hälften kriegen exakt 180ms Fusions-Sperre. Danach instant Merge!
+      c.mergeTimer = 180;
+      const np = makePiece(p, c.x, c.y, half, (dx/d)*speedBoost, (dy/d)*speedBoost, 180);
       newPieces.push(np);
     }
     p.pieces.push(...newPieces);
@@ -422,9 +393,8 @@
     const run = () => {
       if(c >= times) return;
       splitPlayer(p); c++;
-      if(c < times) setTimeout(run, 50);
-    };
-    run();
+      if(c < times) setTimeout(run, 40);
+    }; run();
   }
 
   function ejectMass(p){
@@ -432,79 +402,64 @@
       if(c.mass < EJECT_MASS + 20) continue;
       c.mass -= EJECT_MASS;
       const dx = p.target.x - c.x; const dy = p.target.y - c.y;
-      const d = Math.hypot(dx, dy) || 1;
-      const r = massToRadius(c.mass);
+      const d = Math.hypot(dx, dy) || 1; const r = massToRadius(c.mass);
 
       ejected.push({
         x: c.x + (dx/d) * r, y: c.y + (dy/d) * r,
-        vx: (dx/d) * 20, vy: (dy/d) * 20,
-        mass: EJECT_MASS, color: p.color, life: 100
+        vx: (dx/d) * 20, vy: (dy/d) * 20, mass: EJECT_MASS, color: p.color, life: 100
       });
     }
   }
 
-  // ---------------------------------------------------------------------
-  // GAME ENGINE PROCESSING & REVISED VIRUS OVERHAUL (+100 MASS)
-  // ---------------------------------------------------------------------
   function eatFood(){
     for(const p of players){
       if(p.dead) continue;
       for(const c of p.pieces){
         const r = massToRadius(c.mass);
-        
-        // Futter fressen
         for(let i=foods.length-1; i>=0; i--){
           const f = foods[i];
           if((c.x-f.x)**2 + (c.y-f.y)**2 < r*r){ c.mass += f.mass; foods[i] = makeFood(); }
         }
-
-        // Ausgeworfene Masse absorbieren
         for(let i=ejected.length-1; i>=0; i--){
-          const e = ejected[i];
-          if(e.life > 85) continue; // Kurze Sperre direkt nach Auswurf
+          const e = ejected[i]; if(e.life > 85) continue; 
           if((c.x-e.x)**2 + (c.y-e.y)**2 < r*r){ c.mass += e.mass; ejected.splice(i, 1); }
         }
       }
     }
   }
 
+  // ---------------------------------------------------------------------
+  // KORRIGIERTE VIREN-LOGIK (GHOSTING UNTER 130 MASSE)
+  // ---------------------------------------------------------------------
   function virusHit(){
     for(const p of players){
       if(p.dead) continue;
       for(let pi=0; pi<p.pieces.length; pi++){
-        const c = p.pieces[pi];
-        const r = massToRadius(c.mass);
+        const c = p.pieces[pi]; const r = massToRadius(c.mass);
 
         for(let vi=viruses.length-1; vi>=0; vi--){
           const v = viruses[vi];
-          const dist = Math.hypot(c.x - v.x, c.y - v.y);
-
-          if(dist < r){
-            // Wunschgemäß: Wenn Masse >= 130, ist das Virus essbar!
+          if(Math.hypot(c.x - v.x, c.y - v.y) < r){
+            
+            // NUR WENN MASSE >= 130 IST, GIBT ES EINE KOLLISION!
             if(c.mass >= 130) {
-              c.mass += 100; // Macht +100 Punkte!
-              viruses[vi] = makeVirus(); // Spawnt woanders neu
+              c.mass += 100;
+              viruses[vi] = makeVirus();
 
-              // Explosions-Zerstückelung (Bringt Spieler zum Aufteilen)
               const maxSplits = Math.min(MAX_PIECES - p.pieces.length, 6);
               if(maxSplits > 1){
                 const pieceMass = c.mass / (maxSplits + 1);
                 c.mass = pieceMass;
+                c.mergeTimer = 250; // Auch Viren-Splits kriegen kurzen Cooldown
                 for(let k=0; k<maxSplits; k++){
-                  const ang = Math.random() * Math.PI * 2;
-                  const force = rand(14, 24);
-                  const np = makePiece(p, c.x, c.y, pieceMass, Math.cos(ang)*force, Math.sin(ang)*force);
+                  const ang = Math.random() * Math.PI * 2; const force = rand(16, 28);
+                  const np = makePiece(p, c.x, c.y, pieceMass, Math.cos(ang)*force, Math.sin(ang)*force, 250);
                   p.pieces.push(np);
                 }
               }
-            } else {
-              // Unter 130 Masse: Virus schiebt dich weg (starrer Körper)
-              const overlap = r + massToRadius(v.mass) * 0.5 - dist;
-              if (overlap > 0) {
-                c.x += ((c.x - v.x) / (dist || 1)) * overlap * 0.6;
-                c.y += ((c.y - v.y) / (dist || 1)) * overlap * 0.6;
-              }
             }
+            // WENN MASSE < 130 IST -> PASSIERT GAR NICHTS! DU GLEITEST DURCH!
+            
           }
         }
       }
@@ -521,10 +476,8 @@
           for(let i=q.pieces.length-1; i>=0; i--){
             const t = q.pieces[i];
             if(c.mass < t.mass * 1.15) continue;
-            const d2 = (c.x-t.x)**2 + (c.y-t.y)**2;
-            if(d2 < (r - massToRadius(t.mass) * 0.45)**2){
-              c.mass += t.mass;
-              q.pieces.splice(i, 1);
+            if((c.x-t.x)**2 + (c.y-t.y)**2 < (r - massToRadius(t.mass) * 0.45)**2){
+              c.mass += t.mass; q.pieces.splice(i, 1);
             }
           }
           if(q.pieces.length === 0) q.dead = true;
@@ -546,24 +499,19 @@
       if(p === me) continue;
       if(p.dead){
         const names = BOT_NAMES.slice().sort(()=>Math.random()-0.5);
-        const nb = makePlayer(names[0], true);
-        nb.pieces[0].mass = rand(20, 60);
+        const nb = makePlayer(names[0], true); nb.pieces[0].mass = rand(20, 60);
         Object.assign(p, nb); p.dead = false;
       }
     }
   }
 
-  // ---------------------------------------------------------------------
-  // RENDER LOOP
-  // ---------------------------------------------------------------------
   function step(dt){
     for(const p of players){ if(p.isBot && !p.dead) updateBot(p, performance.now()); }
     if(me && !me.dead){
       const c = playerCenter(me), scale = getScale(me);
-      me.target.x = c.x + (mouse.x - W/2) / scale;
-      me.target.y = c.y + (mouse.y - H/2) / scale;
+      me.target.x = c.x + (mouse.x - W/2) / scale; me.target.y = c.y + (mouse.y - H/2) / scale;
     }
-    for(const p of players){ if(!p.dead) movePlayer(p); }
+    for(const p of players){ if(!p.dead) movePlayer(p, dt); } // dt weitergeben!
     for(let i=ejected.length-1; i>=0; i--){
       const e = ejected[i]; e.x += e.vx; e.y += e.vy; e.vx *= 0.90; e.vy *= 0.90; e.life--;
       if(e.life <= 0){ foods.push({ x: e.x, y: e.y, r: 5, color: e.color, mass: e.mass }); ejected.splice(i, 1); }
@@ -575,8 +523,7 @@
   const getScale = p => Math.min(1, Math.pow(30 / playerMass(p), 0.22)) * 1.15;
 
   function drawGrid(camX, camY, scale){
-    ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 1;
-    const step = 60;
+    ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 1; const step = 60;
     const startX = Math.floor((camX - W/2/scale)/step)*step; const endX = camX + W/2/scale;
     const startY = Math.floor((camY - H/2/scale)/step)*step; const endY = camY + H/2/scale;
     ctx.beginPath();
@@ -588,11 +535,8 @@
   }
 
   function draw(){
-    ctx.fillStyle = '#f5f5f5'; ctx.fillRect(0,0,W,H);
-    if(!me) return;
-    const c = playerCenter(me), scale = getScale(me);
-    drawGrid(c.x, c.y, scale);
-
+    ctx.fillStyle = '#f5f5f5'; ctx.fillRect(0,0,W,H); if(!me) return;
+    const c = playerCenter(me), scale = getScale(me); drawGrid(c.x, c.y, scale);
     const toScreen = (x,y) => [(x-c.x)*scale + W/2, (y-c.y)*scale + H/2];
 
     for(const f of foods){
@@ -617,7 +561,7 @@
     }
     
     const allPieces = [];
-    for(const p of players){ if(!p.dead) for(const c of p.pieces) allPieces.push({p,c}); }
+    for(const p of players){ if(!p.dead) for(const pc of p.pieces) allPieces.push({p,c:pc}); }
     allPieces.sort((a,b)=>a.c.mass-b.c.mass);
 
     for(const {p,c} of allPieces){
@@ -643,7 +587,6 @@
     lbList.innerHTML = ranked.map((r,i)=> `<div class="row"><span>${i+1}. ${r.me?'<b style="color:#ffd54f">'+r.n+'</b>':r.n}</span><span>${Math.floor(r.m)}</span></div>` ).join('');
   }
 
-  // Input Tasten
   addEventListener('keydown', e => {
     if(!running || !me || me.dead) return;
     if(e.code === 'Space'){ e.preventDefault(); splitPlayer(me); }
