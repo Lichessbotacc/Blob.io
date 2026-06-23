@@ -330,10 +330,37 @@
     if(prey){
       b.target.x = prey.x; b.target.y = prey.y;
       // Reicht die Masse für einen Split-Kill?
-      if(preyDist < cfg.splitDist && myLargest.mass > prey.mass * cfg.huntRatio && b.pieces.length < 12){
+      if (
+    preyDist < cfg.splitDist &&
+    myLargest.mass > prey.mass * cfg.huntRatio &&
+    b.pieces.length < 12
+) {
+
+    const ratio = myLargest.mass / prey.mass;
+
+    // Nur normaler Split
+    if (ratio < 3) {
         splitPlayer(b);
-        if(b.style === 'Splitter' && Math.random() < 0.40) setTimeout(() => splitPlayer(b), 45); // Double Split!
-      }
+    }
+
+    // Double Split
+    else if (ratio < 6 && preyDist > 250) {
+        multiSplit(b, 2);
+    }
+
+    // Triple Split nur für sehr sichere Kills
+    else if (
+        ratio >= 6 &&
+        preyDist > 400 &&
+        b.pieces.length <= 4
+    ) {
+        multiSplit(b, 3);
+    }
+
+    else {
+        splitPlayer(b);
+    }
+}
       keepTargetInWorld(b.target);
       return;
     }
