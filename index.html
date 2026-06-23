@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-<title>Blob.io 1zu1 Offline (Instant Merge & AI Plus)</title>
+<title>Blob.io Instant Merge</title>
 <style>
   :root{
     --ui-bg: rgba(0,0,0,.6);
@@ -191,13 +191,13 @@
   const VIRUS_MASS = 100;
 
   const COLORS = ['#e53935','#fb8c00','#fdd835','#43a047','#1e88e5','#5e35b1','#d81b60','#00897b','#3949ab','#7cb342'];
-  const BOT_NAMES = ['BlobKing','Toxic','Zero','Rush','Titan','Fury','Shadow','WunWun','Solo','Splitz','Ghost','Agario','Mars','Swift','Alpha','Hunter','Apex','Synergy'];
+  const BOT_NAMES = ['Andi','Dark','BlobKing','Toxic','Zero','Rush','Titan','Fury','Shadow','WunWun','Solo','Splitz','Ghost','Agario','Mars','Swift','Alpha','Hunter','Apex','Synergy','Jumbo',];
 
   // BOT ARCHETYPEN DEFINITION
   const BOT_STYLES = [
-    { type: 'Aggressiv', splitDist: 340, huntRatio: 1.80, delay: 50 },  // Teilt oft und sehr riskant
+    { type: 'Aggressiv', splitDist: 500, huntRatio: 1.80, delay: 50 },  // Teilt oft und sehr riskant
     { type: 'Defensiv',  splitDist: 240, huntRatio: 2.80, delay: 110 }, // Teilt extrem selten, flieht früh
-    { type: 'Splitter',  splitDist: 380, huntRatio: 2.05, delay: 40 },  // Liebt Double-Splits
+    { type: 'Splitter',  splitDist: 380, huntRatio: 2.05, delay: 10 },  // Liebt Double-Splits
     { type: 'Ruhig',     splitDist: 300, huntRatio: 2.35, delay: 85 }   // Standard Balanced AI
   ];
 
@@ -436,26 +436,54 @@
   }
 
   function splitPlayer(p){
-    if(p.pieces.length >= MAX_PIECES) return;
-    const newPieces = [];
+  if(p.pieces.length >= MAX_PIECES) return;
+  const newPieces = [];
 
-    for(const c of p.pieces){
-      if(p.pieces.length + newPieces.length >= MAX_PIECES) break;
-      if(c.mass < settings.minSplitMass) continue;
+  for(const c of p.pieces){
+    if(p.pieces.length + newPieces.length >= MAX_PIECES) break;
+    if(c.mass < settings.minSplitMass) continue;
 
-      const half = c.mass / 2; c.mass = half;
-      const dx = p.target.x - c.x; const dy = p.target.y - c.y;
-      const d = Math.hypot(dx, dy) || 1;
+    const half = c.mass / 2;
+    c.mass = half;
 
-     const speedBoost = 14 + (massToRadius(half) * 0.18);
-     c.boostX *= 0.75;
-      c.boostY *= 0.75;
-      c.mergeTimer = 180;
-      const np = makePiece(p, c.x, c.y, half, (dx/d)*speedBoost, (dy/d)*speedBoost, 180);
-      newPieces.push(np);
-    }
-    p.pieces.push(...newPieces);
+    // direction to target
+    let dx = p.target.x - c.x;
+    let dy = p.target.y - c.y;
+
+    const len = Math.hypot(dx, dy) || 1;
+    dx /= len;
+    dy /= len;
+
+    // Agar-style skill spread
+    const spread = 0.14;
+    dx += (Math.random() - 0.5) * spread;
+    dy += (Math.random() - 0.5) * spread;
+
+    const len2 = Math.hypot(dx, dy) || 1;
+    dx /= len2;
+    dy /= len2;
+
+    const speedBoost = 16 + massToRadius(half) * 0.22;
+
+    const np = makePiece(
+      p,
+      c.x,
+      c.y,
+      half,
+      dx * speedBoost,
+      dy * speedBoost,
+      200
+    );
+
+    // softer recoil (feeling control like pro players)
+    c.boostX *= 0.7;
+    c.boostY *= 0.7;
+
+    newPieces.push(np);
   }
+
+  p.pieces.push(...newPieces);
+}
 
   function multiSplit(p, times){
     let c = 0;
