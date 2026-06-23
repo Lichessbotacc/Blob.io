@@ -2,34 +2,161 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
 <title>Blob.io Offline</title>
 <style>
-  html,body{margin:0;height:100%;overflow:hidden;background:#111;font-family:Arial,sans-serif;color:#fff}
-  canvas{display:block;background:#f5f5f5}
-  #hud{position:fixed;top:10px;left:10px;background:rgba(0,0,0,.5);padding:8px 12px;border-radius:6px;font-size:14px}
-  #leaderboard{position:fixed;top:10px;right:10px;background:rgba(0,0,0,.5);padding:8px 12px;border-radius:6px;font-size:13px;min-width:160px}
+  :root{
+    --ui-bg: rgba(0,0,0,.55);
+    --ui-bg-light: rgba(255,255,255,.08);
+    --accent: #4caf50;
+    --accent-hover: #43a047;
+    --danger: #e53935;
+  }
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body{margin:0;height:100%;overflow:hidden;background:#111;font-family:-apple-system,BlinkMacSystemFont,Arial,sans-serif;color:#fff;
+    touch-action:none;
+  }
+  canvas{display:block;background:#f5f5f5;touch-action:none;}
+
+  #hud{position:fixed;top:10px;left:10px;background:var(--ui-bg);padding:8px 12px;border-radius:6px;font-size:14px;
+    padding-top:max(8px, env(safe-area-inset-top));
+  }
+  #leaderboard{position:fixed;top:10px;right:10px;background:var(--ui-bg);padding:8px 12px;border-radius:6px;font-size:13px;min-width:160px;
+    padding-top:max(8px, env(safe-area-inset-top));
+  }
   #leaderboard h3{margin:0 0 4px;font-size:14px;color:#ffd54f}
-  #overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.7);z-index:10}
-  #overlay .box{background:#222;padding:24px 32px;border-radius:10px;text-align:center;box-shadow:0 8px 30px rgba(0,0,0,.5)}
-  #overlay input{padding:8px;font-size:16px;border-radius:4px;border:none;width:200px;margin:8px 0;text-align:center}
-  #overlay button{padding:8px 20px;font-size:16px;background:#4caf50;border:none;color:#fff;border-radius:4px;cursor:pointer;margin-top:8px}
-  #overlay button:hover{background:#43a047}
   .row{display:flex;justify-content:space-between;gap:10px}
+
+  #settingsBtn{
+    position:fixed; top:10px; left:50%; transform:translateX(-50%);
+    background:var(--ui-bg); border:none; color:#fff; width:36px;height:36px;border-radius:50%;
+    font-size:18px; cursor:pointer; display:flex; align-items:center; justify-content:center;
+    margin-top:max(0px, env(safe-area-inset-top));
+  }
+  #settingsBtn:hover{background:rgba(0,0,0,.7)}
+
+  #overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.7);z-index:20}
+  #overlay .box{background:#222;padding:24px 32px;border-radius:10px;text-align:center;box-shadow:0 8px 30px rgba(0,0,0,.5);max-width:90vw;}
+  #overlay input{padding:8px;font-size:16px;border-radius:4px;border:none;width:200px;margin:8px 0;text-align:center}
+  #overlay button.primary{padding:8px 20px;font-size:16px;background:var(--accent);border:none;color:#fff;border-radius:4px;cursor:pointer;margin-top:8px}
+  #overlay button.primary:hover{background:var(--accent-hover)}
+
+  /* Settings panel */
+  #settingsPanel{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.7);z-index:30}
+  #settingsPanel .box{background:#1c1c1c;padding:20px 24px;border-radius:12px;width:340px;max-width:92vw;max-height:85vh;overflow-y:auto;
+    box-shadow:0 8px 30px rgba(0,0,0,.5);}
+  #settingsPanel h2{margin:0 0 14px;font-size:18px;text-align:center}
+  .setting-row{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:12px 0;font-size:14px}
+  .setting-row label{flex:1}
+  .setting-row input[type=range]{flex:1;max-width:140px}
+  .setting-row .val{width:36px;text-align:right;font-size:13px;opacity:.85}
+  .toggle{position:relative;width:46px;height:26px;background:#444;border-radius:13px;cursor:pointer;flex-shrink:0;transition:background .15s}
+  .toggle.on{background:var(--accent)}
+  .toggle .knob{position:absolute;top:3px;left:3px;width:20px;height:20px;background:#fff;border-radius:50%;transition:left .15s}
+  .toggle.on .knob{left:23px}
+  #settingsPanel .closeBtn{display:block;margin:16px auto 0;padding:8px 24px;background:var(--accent);border:none;color:#fff;border-radius:6px;cursor:pointer;font-size:14px}
+  #settingsPanel .closeBtn:hover{background:var(--accent-hover)}
+  #settingsPanel .section-title{font-size:12px;text-transform:uppercase;letter-spacing:.06em;opacity:.6;margin:16px 0 4px;}
+  #settingsPanel .section-title:first-of-type{margin-top:0}
+  #settingsPanel .hint{font-size:11px;opacity:.55;margin-top:-6px;margin-bottom:4px;}
+
+  /* Touch controls (iPad / touch devices) */
+  #touchControls{position:fixed;bottom:0;left:0;display:none;gap:10px;padding:14px;
+    padding-bottom:max(14px, env(safe-area-inset-bottom));
+    z-index:15;
+  }
+  #touchControls button{
+    width:64px;height:64px;border-radius:50%;border:2px solid rgba(255,255,255,.35);
+    background:rgba(0,0,0,.45);color:#fff;font-size:14px;font-weight:bold;
+    display:flex;align-items:center;justify-content:center;cursor:pointer;user-select:none;
+  }
+  #touchControls button:active{background:rgba(255,255,255,.25)}
+  #touchControls button.split{background:rgba(76,175,80,.55);border-color:rgba(76,175,80,.8)}
+  #touchControls button.throw{background:rgba(251,140,0,.55);border-color:rgba(251,140,0,.8)}
+
+  body.touch-mode #touchControls{display:flex}
 </style>
 </head>
 <body>
 <canvas id="game"></canvas>
 <div id="hud">Masse: <span id="mass">0</span></div>
 <div id="leaderboard"><h3>Bestenliste</h3><div id="lblist"></div></div>
+<button id="settingsBtn" title="Einstellungen">⚙</button>
+
+<div id="touchControls">
+  <button class="split" id="btnSplit">Split</button>
+  <button class="throw" id="btnThrow">Throw</button>
+  <button id="btnDouble">D</button>
+  <button id="btnTriple">T</button>
+</div>
+
 <div id="overlay">
   <div class="box">
     <h2 id="title">Blob.io Offline</h2>
     <p id="subtitle">Gib deinen Namen ein und spiele!</p>
     <div><input id="name" maxlength="16" placeholder="Dein Name" value="Spieler"/></div>
-    <button id="play">Spielen</button>
-    <p style="font-size:12px;opacity:.7;margin-top:14px">Maus = bewegen · Leertaste = teilen · W = Masse abwerfen</p>
+    <div>
+      <button class="primary" id="play">Spielen</button>
+    </div>
+    <p style="font-size:12px;opacity:.7;margin-top:14px">Maus = bewegen · Leertaste = teilen · W = Masse abwerfen<br>Auf Touch-Geräten erscheinen Steuer-Buttons unten links.</p>
+    <p style="font-size:12px;opacity:.7;margin-top:6px"><a href="#" id="openSettingsFromMenu" style="color:#9fd89f">⚙ Einstellungen öffnen</a></p>
   </div>
 </div>
+
+<div id="settingsPanel">
+  <div class="box">
+    <h2>Einstellungen</h2>
+
+    <div class="section-title">Welt</div>
+    <div class="setting-row">
+      <label for="optFoodCount">Futter-Menge</label>
+      <input type="range" id="optFoodCount" min="200" max="1600" step="50">
+      <span class="val" id="optFoodCountVal"></span>
+    </div>
+    <div class="setting-row">
+      <label for="optVirusCount">Anzahl Viren</label>
+      <input type="range" id="optVirusCount" min="0" max="60" step="1">
+      <span class="val" id="optVirusCountVal"></span>
+    </div>
+    <div class="setting-row">
+      <label for="optBotCount">Anzahl Bots</label>
+      <input type="range" id="optBotCount" min="0" max="40" step="1">
+      <span class="val" id="optBotCountVal"></span>
+    </div>
+
+    <div class="section-title">Bot-Verhalten</div>
+    <div class="setting-row">
+      <label for="optBotAggro">Bot-Aggressivität</label>
+      <input type="range" id="optBotAggro" min="0" max="100" step="5">
+      <span class="val" id="optBotAggroVal"></span>
+    </div>
+    <div class="setting-row">
+      <label for="optBotName">Bot-Namen anzeigen</label>
+      <div class="toggle" id="optBotNamesToggle"><div class="knob"></div></div>
+    </div>
+
+    <div class="section-title">Spielregeln</div>
+    <div class="hint">Instant Merge: geteilte Zellen verschmelzen sofort wieder bei Kontakt (kein Timer).</div>
+    <div class="setting-row">
+      <label for="optMassDecay">Masseverlust über Zeit</label>
+      <div class="toggle" id="optMassDecayToggle"><div class="knob"></div></div>
+    </div>
+    <div class="setting-row">
+      <label for="optMinSplit">Mindestmasse zum Teilen</label>
+      <input type="range" id="optMinSplit" min="20" max="80" step="5">
+      <span class="val" id="optMinSplitVal"></span>
+    </div>
+
+    <div class="section-title">Steuerung</div>
+    <div class="setting-row">
+      <label for="optTouchControls">Touch-Buttons immer anzeigen</label>
+      <div class="toggle" id="optTouchToggle"><div class="knob"></div></div>
+    </div>
+
+    <button class="closeBtn" id="closeSettings">Schließen</button>
+  </div>
+</div>
+
 <script>
 (() => {
   const canvas = document.getElementById('game');
@@ -41,29 +168,116 @@
   const nameInput = document.getElementById('name');
   const massEl = document.getElementById('mass');
   const lbList = document.getElementById('lblist');
+  const settingsBtn = document.getElementById('settingsBtn');
+  const settingsPanel = document.getElementById('settingsPanel');
+  const closeSettingsBtn = document.getElementById('closeSettings');
+  const openSettingsFromMenu = document.getElementById('openSettingsFromMenu');
 
+  // ---------------------------------------------------------------------
+  // SETTINGS
+  // ---------------------------------------------------------------------
+  const DEFAULT_SETTINGS = {
+    foodCount: 800,
+    virusCount: 25,
+    botCount: 18,
+    botAggro: 60,       // 0-100, controls hunting/splitting frequency & risk taking
+    showBotNames: true,
+    massDecay: false,
+    minSplitMass: 35,
+    forceTouchControls: false
+  };
+  let settings = Object.assign({}, DEFAULT_SETTINGS);
+
+  function isTouchDevice(){
+    return (navigator.maxTouchPoints > 0) || ('ontouchstart' in window);
+  }
+  function applyTouchMode(){
+    document.body.classList.toggle('touch-mode', settings.forceTouchControls || isTouchDevice());
+  }
+
+  function bindRange(id, key, fmt){
+    const el = document.getElementById(id);
+    const valEl = document.getElementById(id + 'Val');
+    el.value = settings[key];
+    valEl.textContent = fmt ? fmt(settings[key]) : settings[key];
+    el.addEventListener('input', () => {
+      settings[key] = Number(el.value);
+      valEl.textContent = fmt ? fmt(settings[key]) : settings[key];
+    });
+  }
+  function bindToggle(id, key, onChange){
+    const el = document.getElementById(id);
+    function render(){ el.classList.toggle('on', !!settings[key]); }
+    render();
+    el.addEventListener('click', () => {
+      settings[key] = !settings[key];
+      render();
+      if(onChange) onChange();
+    });
+  }
+
+  bindRange('optFoodCount', 'foodCount');
+  bindRange('optVirusCount', 'virusCount');
+  bindRange('optBotCount', 'botCount');
+  bindRange('optBotAggro', 'botAggro', v => v + '%');
+  bindRange('optMinSplit', 'minSplitMass');
+  bindToggle('optBotNamesToggle', 'showBotNames');
+  bindToggle('optMassDecayToggle', 'massDecay');
+  bindToggle('optTouchToggle', 'forceTouchControls', applyTouchMode);
+
+  function openSettings(){ settingsPanel.style.display = 'flex'; }
+  function closeSettings(){ settingsPanel.style.display = 'none'; }
+  settingsBtn.addEventListener('click', openSettings);
+  closeSettingsBtn.addEventListener('click', closeSettings);
+  openSettingsFromMenu.addEventListener('click', e => { e.preventDefault(); openSettings(); });
+
+  applyTouchMode();
+
+  // ---------------------------------------------------------------------
+  // CONSTANTS / WORLD
+  // ---------------------------------------------------------------------
   const WORLD = 6000;
-  const FOOD_COUNT = 800;
-  const VIRUS_COUNT = 25;
-  const BOT_COUNT = 18;
-  const MIN_SPLIT_MASS = 35;
   const EJECT_MASS = 16;
   const MAX_PIECES = 16;
 
   const COLORS = ['#e53935','#fb8c00','#fdd835','#43a047','#1e88e5','#5e35b1','#d81b60','#00897b','#3949ab','#7cb342'];
-  const BOT_NAMES = ['Anna','Tom','Lisa','Max','Eva','Leo','Mia','Ben','Lia','Ole','Jan','Kai','Noa','Pia','Sam','Tim','Una','Vik','Wim','Zoe'];
+  const BOT_NAMES = ['Anna','Tom','Lisa','Max','Eva','Leo','Mia','Ben','Lia','Ole','Jan','Kai','Noa','Pia','Sam','Tim','Una','Vik','Wim','Zoe','Finn','Ida','Theo','Luca','Mara','Nils','Greta','Felix','Lena','Otto'];
 
   let W = innerWidth, H = innerHeight;
   function resize(){ W = innerWidth; H = innerHeight; canvas.width = W; canvas.height = H; }
   addEventListener('resize', resize); resize();
 
+  // ---------------------------------------------------------------------
+  // INPUT: mouse + touch drag for movement
+  // ---------------------------------------------------------------------
   const mouse = { x: W/2, y: H/2 };
   addEventListener('mousemove', e => { mouse.x = e.clientX; mouse.y = e.clientY; });
-  addEventListener('touchmove', e => { if(e.touches[0]){ mouse.x=e.touches[0].clientX; mouse.y=e.touches[0].clientY; } }, {passive:true});
+
+  // Touch: track a "movement" pointer separate from the control buttons.
+  let moveTouchId = null;
+  canvas.addEventListener('touchstart', e => {
+    for(const t of e.changedTouches){
+      if(moveTouchId === null){
+        moveTouchId = t.identifier;
+        mouse.x = t.clientX; mouse.y = t.clientY;
+      }
+    }
+  }, {passive:true});
+  canvas.addEventListener('touchmove', e => {
+    for(const t of e.changedTouches){
+      if(t.identifier === moveTouchId){
+        mouse.x = t.clientX; mouse.y = t.clientY;
+      }
+    }
+  }, {passive:true});
+  canvas.addEventListener('touchend', e => {
+    for(const t of e.changedTouches){
+      if(t.identifier === moveTouchId) moveTouchId = null;
+    }
+  }, {passive:true});
 
   const rand = (a,b) => a + Math.random()*(b-a);
   const ri = n => Math.floor(Math.random()*n);
-  const dist2 = (a,b) => { const dx=a.x-b.x, dy=a.y-b.y; return dx*dx+dy*dy; };
   const massToRadius = m => Math.sqrt(m) * 4;
   const speedFor = m => Math.max(0.8, 6 - Math.log(m) * 0.6);
 
@@ -77,12 +291,41 @@
   function makeVirus(){
     return { x: rand(0,WORLD), y: rand(0,WORLD), mass: 120, color: '#33d17a', virus: true };
   }
-  function makePiece(player, x, y, mass){
-    return { x, y, mass, vx:0, vy:0, mergeAt: performance.now() + 12000, player };
+  // Instant merge: pieces merge the moment they touch again — but a freshly
+  // split piece must actually fly apart and clear its sibling first, otherwise
+  // it would just fuse back together on the very next frame (since both halves
+  // are pulled toward the same mouse target). "separated" flips true once the
+  // piece has put enough real distance between itself and where it was born;
+  // only then is it eligible to merge again.
+  // Each bot gets its own skill level (0 = clumsy/passive, 1 = sharp/aggressive)
+  // so bots feel like a mixed lobby of real players rather than identical clones.
+  // Skill scales reaction speed, hunting range, split-timing precision, and how
+  // often the bot just makes a dumb/suboptimal move.
+  function rollBotSkill(){
+    // Skewed distribution: most bots land in the "average" middle band,
+    // with a few real sharks and a few easy targets at the extremes.
+    const skill = Math.pow(Math.random(), 1.4) * 0.6 + Math.random()*0.4;
+    return Math.max(0, Math.min(1, skill));
   }
-  function makePlayer(name, isBot){
-    const color = COLORS[ri(COLORS.length)];
-    const p = { name, color, isBot, dead:false, pieces:[], target:{x:WORLD/2,y:WORLD/2} };
+  function makePiece(player, x, y, mass){
+    return { x, y, mass, vx:0, vy:0, separated:false, player };
+  }
+  function makePlayer(name, isBot, colorOverride){
+    const color = colorOverride || COLORS[ri(COLORS.length)];
+    const skill = isBot ? rollBotSkill() : 1;
+    const p = {
+      name, color, isBot, dead:false, pieces:[], target:{x:WORLD/2,y:WORLD/2},
+      skill,
+      // bot personality / behavior state
+      botState: isBot ? {
+        mode: 'roam',           // roam | chase | flee | virusHunt | splitAttack
+        decisionAt: 0,          // next time bot re-evaluates strategy
+        splitCooldownUntil: 0,  // bots don't split-attack constantly
+        ejectCooldownUntil: 0,
+        reactionDelay: (1-skill) * 280,   // ms-equivalent sluggishness, low-skill bots notice things later
+        mistakeChance: (1-skill) * 0.35,  // chance per decision to do something suboptimal
+      } : null
+    };
     const x = rand(200,WORLD-200), y = rand(200,WORLD-200);
     p.pieces.push(makePiece(p, x, y, 20));
     p.target.x = x; p.target.y = y;
@@ -91,12 +334,13 @@
 
   function init(name){
     foods = []; viruses = []; players = []; ejected = [];
-    for(let i=0;i<FOOD_COUNT;i++) foods.push(makeFood());
-    for(let i=0;i<VIRUS_COUNT;i++) viruses.push(makeVirus());
-    me = makePlayer(name || 'Spieler', false);
+    for(let i=0;i<settings.foodCount;i++) foods.push(makeFood());
+    for(let i=0;i<settings.virusCount;i++) viruses.push(makeVirus());
+    me = makePlayer(name || 'Spieler', false, '#1e88e5');
     players.push(me);
-    for(let i=0;i<BOT_COUNT;i++){
-      const b = makePlayer(BOT_NAMES[i%BOT_NAMES.length], true);
+    const shuffledNames = BOT_NAMES.slice().sort(()=>Math.random()-0.5);
+    for(let i=0;i<settings.botCount;i++){
+      const b = makePlayer(shuffledNames[i%shuffledNames.length], true);
       b.pieces[0].mass = rand(20, 150);
       players.push(b);
     }
@@ -106,29 +350,124 @@
   function playerCenter(p){
     let x=0,y=0,m=0;
     for(const c of p.pieces){ x+=c.x*c.mass; y+=c.y*c.mass; m+=c.mass; }
+    if(m===0) return {x:0,y:0};
     return { x:x/m, y:y/m };
   }
+  function largestPiece(p){
+    return p.pieces.reduce((a,b)=> b.mass>a.mass? b:a, p.pieces[0]);
+  }
 
-  function updateBot(b){
+  // ---------------------------------------------------------------------
+  // BOT AI — tries to behave like a real player, and every bot is a
+  // different "skill level" of player:
+  //  - higher skill = spots threats/prey from farther away, reacts faster,
+  //    times splits more precisely, avoids virus mishaps
+  //  - lower skill = notices danger late, sometimes panics too slow,
+  //    occasionally splits pointlessly or wanders into a virus by accident
+  // ---------------------------------------------------------------------
+  function updateBot(b, now){
     const c = playerCenter(b);
-    // find nearest food / smaller player
-    let best = null, bestD = Infinity;
-    for(let i=0;i<60;i++){
-      const f = foods[ri(foods.length)];
-      const d = (f.x-c.x)**2+(f.y-c.y)**2;
-      if(d<bestD){ bestD=d; best=f; }
-    }
+    const bm = playerMass(b);
+    const aggro = settings.botAggro / 100; // 0..1 global slider
+    const skill = b.skill;                 // 0..1 per-bot individual skill
+    const bs = b.botState;
+
+    // Skilled bots notice things from farther away and react with less delay;
+    // weak bots are nearsighted and slow on the uptake.
+    const sightMult = 0.65 + skill * 0.7;       // ~0.65x .. 1.35x range
+    const threatRange = 550 * sightMult;
+    const preyRange = 500 * sightMult;
+    const virusAwareRange = 260 * sightMult;
+
+    // Find nearby threats and prey among other players
+    let nearestThreat = null, threatD = Infinity;
+    let nearestPrey = null, preyD = Infinity;
     for(const p of players){
       if(p===b||p.dead) continue;
-      const pc = playerCenter(p), pm = playerMass(p), bm = playerMass(b);
-      const d = (pc.x-c.x)**2+(pc.y-c.y)**2;
-      if(pm < bm*0.8 && d < 400*400 && d < bestD){ bestD=d; best=pc; }
-      else if(pm > bm*1.25 && d < 350*350){
-        best = { x: c.x - (pc.x-c.x), y: c.y - (pc.y-c.y) };
-        bestD = 0;
+      const pc = playerCenter(p), pm = playerMass(p);
+      const d2 = (pc.x-c.x)**2+(pc.y-c.y)**2;
+      if(pm > bm*1.2 && d2 < (threatRange*threatRange)){
+        if(d2<threatD){ threatD=d2; nearestThreat={pc,pm,p}; }
+      } else if(pm < bm*0.75 && d2 < (preyRange*preyRange)){
+        if(d2<preyD){ preyD=d2; nearestPrey={pc,pm,p}; }
       }
     }
-    if(best){ b.target.x = best.x; b.target.y = best.y; }
+
+    // Find nearest virus
+    let nearestVirus = null, virusD = Infinity;
+    for(const v of viruses){
+      const d2=(v.x-c.x)**2+(v.y-c.y)**2;
+      if(d2<virusD){ virusD=d2; nearestVirus=v; }
+    }
+
+    // A low-skill bot occasionally just fails to notice a real threat in time —
+    // it "sees" it but reacts a beat late, represented here as a chance to
+    // simply ignore a borderline-range threat this tick.
+    const noticesThreat = nearestThreat && (threatD < (threatRange*0.55)**2 || Math.random() > bs.mistakeChance);
+
+    // --- Decide mode ---
+    if(nearestThreat && threatD < threatRange*threatRange && noticesThreat){
+      bs.mode = 'flee';
+    } else if(nearestPrey && preyD < preyRange*preyRange && Math.random() < (0.25+aggro*0.6)*(0.5+skill*0.5)){
+      bs.mode = 'chase';
+    } else if(nearestVirus && virusD < virusAwareRange*virusAwareRange && bm > 220 && Math.random() < aggro*0.4*(0.5+skill*0.5)){
+      // Bigger, sharper bots deliberately pop a virus to fragment away from a
+      // chaser or spread mass; this is a deliberate, skill-weighted choice.
+      bs.mode = 'virusHunt';
+    } else {
+      bs.mode = 'roam';
+      if(now > bs.decisionAt){
+        bs.decisionAt = now + rand(1500, 4000) + bs.reactionDelay;
+        let best=null, bestD=Infinity;
+        for(let i=0;i<40;i++){
+          const f = foods[ri(foods.length)];
+          if(!f) continue;
+          const d=(f.x-c.x)**2+(f.y-c.y)**2;
+          if(d<bestD){bestD=d;best=f;}
+        }
+        if(best){ b.target.x = best.x; b.target.y = best.y; }
+        else { b.target.x = rand(0,WORLD); b.target.y = rand(0,WORLD); }
+      }
+    }
+
+    if(bs.mode === 'flee'){
+      const pc = nearestThreat.pc;
+      // Skilled bots flee in a clean straight line away; clumsy bots flee at
+      // a slightly wrong angle, like a player who panics and doesn't aim well.
+      const wobble = (1-skill) * 0.6;
+      const ang = Math.atan2(c.y-pc.y, c.x-pc.x) + rand(-wobble, wobble);
+      const fleeDist = 400;
+      b.target.x = c.x + Math.cos(ang)*fleeDist;
+      b.target.y = c.y + Math.sin(ang)*fleeDist;
+      // panic-split-away if cornered and big enough: throw a piece off to gain
+      // a speed burst. Skilled bots do this more decisively when truly cornered;
+      // unskilled bots rarely pull it off in time.
+      const panicChance = 0.004 + skill*0.012;
+      if(bm > settings.minSplitMass*1.5 && now > bs.ejectCooldownUntil && threatD < (threatRange*0.4)**2 && Math.random() < panicChance){
+        bs.ejectCooldownUntil = now + 3000;
+        ejectMass(b);
+      }
+    } else if(bs.mode === 'chase'){
+      const pc = nearestPrey.pc, pm = nearestPrey.pm;
+      b.target.x = pc.x; b.target.y = pc.y;
+      // Occasionally split to close distance / secure the kill, like a human
+      // would. Skilled bots demand a bigger safety margin AND time it tighter
+      // (closer range); unskilled bots split more recklessly/too early, which
+      // sometimes wastes the split for no real gain.
+      const myBiggest = largestPiece(b).mass;
+      const requiredEdge = 2.6 - skill*0.8;     // sharks need less of an edge to commit
+      const splitRange = 360 + (1-skill)*120;   // clumsy bots commit from too far away
+      if(myBiggest > settings.minSplitMass*1.4 &&
+         myBiggest > pm*requiredEdge &&
+         preyD < splitRange*splitRange &&
+         now > bs.splitCooldownUntil &&
+         Math.random() < (0.12 + aggro*0.45)*(0.4+skill*0.6)){
+        bs.splitCooldownUntil = now + rand(3000,6000) - skill*1000;
+        splitPlayer(b);
+      }
+    } else if(bs.mode === 'virusHunt'){
+      b.target.x = nearestVirus.x; b.target.y = nearestVirus.y;
+    }
   }
 
   function movePlayer(p){
@@ -144,19 +483,35 @@
       if(c.x<r) c.x=r; if(c.y<r) c.y=r;
       if(c.x>WORLD-r) c.x=WORLD-r; if(c.y>WORLD-r) c.y=WORLD-r;
     }
-    // keep own pieces from overlapping (push apart unless merge ready)
+    // Instant merge: pieces merge the moment they touch again, but only once
+    // they've genuinely separated first. A piece becomes "separated" the
+    // moment it clears a real gap from the sibling it split off from — after
+    // that it's free to merge with ANY of its player's pieces it touches.
     const now = performance.now();
+    for(const c of p.pieces){
+      if(!c.separated){
+        if(!c.splitPartner || !p.pieces.includes(c.splitPartner)){
+          c.separated = true; // partner already merged/gone elsewhere — free to merge
+        } else {
+          const gap = Math.hypot(c.x-c.splitPartner.x, c.y-c.splitPartner.y);
+          const minGap = (massToRadius(c.mass)+massToRadius(c.splitPartner.mass)) * 1.15;
+          if(gap > minGap) c.separated = true;
+        }
+      }
+    }
     for(let i=0;i<p.pieces.length;i++){
       for(let j=i+1;j<p.pieces.length;j++){
         const a=p.pieces[i], b=p.pieces[j];
         const ra=massToRadius(a.mass), rb=massToRadius(b.mass);
         const dx=b.x-a.x, dy=b.y-a.y;
         const d=Math.hypot(dx,dy)||0.01;
-        if(a.mergeAt<=now && b.mergeAt<=now && d < (ra+rb)*0.6){
+        const bothReady = a.separated && b.separated;
+        if(bothReady && d < (ra+rb)*0.6){
           a.mass += b.mass; p.pieces.splice(j,1); j--; continue;
         }
+        // keep pieces from passing through each other while not yet mergeable
         const overlap = ra+rb - d;
-        if(overlap>0){
+        if(overlap>0 && !bothReady){
           const nx=dx/d, ny=dy/d;
           a.x -= nx*overlap*0.5; a.y -= ny*overlap*0.5;
           b.x += nx*overlap*0.5; b.y += ny*overlap*0.5;
@@ -166,22 +521,37 @@
   }
 
   function splitPlayer(p){
-    const now = performance.now();
     const newPieces = [];
     for(const c of p.pieces){
       if(p.pieces.length + newPieces.length >= MAX_PIECES) break;
-      if(c.mass < MIN_SPLIT_MASS) continue;
+      if(c.mass < settings.minSplitMass) continue;
       const half = c.mass/2;
       c.mass = half;
+      c.separated = false;
       const dx = p.target.x - c.x, dy = p.target.y - c.y;
       const d = Math.hypot(dx,dy)||1;
       const np = makePiece(p, c.x, c.y, half);
       np.vx = dx/d * 18; np.vy = dy/d * 18;
-      np.mergeAt = now + 12000;
-      c.mergeAt = now + 12000;
+      // Each half remembers the other so we can require real separation
+      // between this specific pair before they're allowed to re-merge.
+      np.splitPartner = c; c.splitPartner = np;
       newPieces.push(np);
     }
     p.pieces.push(...newPieces);
+  }
+
+  // Multi-split helper for "Double" (2x) and "Triple" (3x) buttons.
+  // Each call is just splitPlayer() invoked back-to-back; a tiny delay
+  // between each keeps the split logic (mass/piece-count checks) consistent.
+  function multiSplit(p, times){
+    let count = 0;
+    function go(){
+      if(count>=times) return;
+      splitPlayer(p);
+      count++;
+      if(count<times) setTimeout(go, 80);
+    }
+    go();
   }
 
   function ejectMass(p){
@@ -203,7 +573,19 @@
     if(!running || !me || me.dead) return;
     if(e.code === 'Space'){ e.preventDefault(); splitPlayer(me); }
     else if(e.code === 'KeyW') ejectMass(me);
+    else if(e.code === 'KeyD') multiSplit(me, 2);
+    else if(e.code === 'KeyT') multiSplit(me, 3);
   });
+
+  // Touch control buttons
+  function bindHoldButton(el, fn){
+    el.addEventListener('touchstart', e => { e.preventDefault(); if(running && me && !me.dead) fn(); }, {passive:false});
+    el.addEventListener('click', e => { if(running && me && !me.dead) fn(); });
+  }
+  bindHoldButton(document.getElementById('btnSplit'), () => splitPlayer(me));
+  bindHoldButton(document.getElementById('btnThrow'), () => ejectMass(me));
+  bindHoldButton(document.getElementById('btnDouble'), () => multiSplit(me, 2));
+  bindHoldButton(document.getElementById('btnTriple'), () => multiSplit(me, 3));
 
   function eatFood(){
     for(const p of players){
@@ -219,7 +601,7 @@
         }
         for(let i=ejected.length-1;i>=0;i--){
           const e = ejected[i];
-          if(e.life>350) continue; // brief delay before eatable
+          if(e.life>350) continue;
           if((c.x-e.x)**2+(c.y-e.y)**2 < r*r){
             c.mass += e.mass;
             ejected.splice(i,1);
@@ -237,10 +619,8 @@
         const r = massToRadius(c.mass);
         for(let vi=viruses.length-1; vi>=0; vi--){
           const v = viruses[vi];
-          const vr = massToRadius(v.mass);
           const d2 = (c.x-v.x)**2+(c.y-v.y)**2;
           if(c.mass > v.mass*1.15 && d2 < r*r){
-            // explode
             viruses[vi] = makeVirus();
             const slots = Math.min(MAX_PIECES - p.pieces.length, 6);
             if(slots > 1){
@@ -250,10 +630,8 @@
                 const ang = Math.random()*Math.PI*2;
                 const np = makePiece(p, c.x, c.y, piece);
                 np.vx = Math.cos(ang)*15; np.vy = Math.sin(ang)*15;
-                np.mergeAt = performance.now() + 15000;
                 p.pieces.push(np);
               }
-              c.mergeAt = performance.now() + 15000;
             }
           }
         }
@@ -283,6 +661,19 @@
     }
   }
 
+  function applyMassDecay(dt){
+    if(!settings.massDecay) return;
+    const rate = 0.0006; // fraction of mass lost per ms above threshold, mild
+    for(const p of players){
+      if(p.dead) continue;
+      for(const c of p.pieces){
+        if(c.mass > 60){
+          c.mass -= c.mass * rate * (dt/1000);
+        }
+      }
+    }
+  }
+
   function respawnBots(){
     for(const p of players){
       if(p===me) continue;
@@ -296,9 +687,8 @@
   }
 
   function step(dt){
-    // bots think
-    for(const p of players){ if(p.isBot && !p.dead) updateBot(p); }
-    // player target = world coords under mouse
+    const now = performance.now();
+    for(const p of players){ if(p.isBot && !p.dead) updateBot(p, now); }
     if(me && !me.dead){
       const c = playerCenter(me);
       const scale = getScale(me);
@@ -306,7 +696,6 @@
       me.target.y = c.y + (mouse.y - H/2)/scale;
     }
     for(const p of players){ if(!p.dead) movePlayer(p); }
-    // ejected
     for(let i=ejected.length-1;i>=0;i--){
       const e = ejected[i];
       e.x += e.vx; e.y += e.vy;
@@ -318,6 +707,7 @@
       }
     }
     eatFood(); virusHit(); eatPlayers();
+    applyMassDecay(dt);
     respawnBots();
     if(me && me.pieces.length===0){ me.dead = true; gameOver(); }
   }
@@ -344,7 +734,6 @@
       ctx.moveTo(0,sy); ctx.lineTo(W,sy);
     }
     ctx.stroke();
-    // world border
     ctx.strokeStyle = '#888'; ctx.lineWidth = 4;
     ctx.strokeRect((0-camX)*scale+W/2,(0-camY)*scale+H/2,WORLD*scale,WORLD*scale);
   }
@@ -358,20 +747,17 @@
 
     const toScreen = (x,y) => [(x-c.x)*scale + W/2, (y-c.y)*scale + H/2];
 
-    // food
     for(const f of foods){
       const [sx,sy] = toScreen(f.x,f.y);
       if(sx<-10||sy<-10||sx>W+10||sy>H+10) continue;
       ctx.fillStyle = f.color;
       ctx.beginPath(); ctx.arc(sx,sy,f.r*scale,0,Math.PI*2); ctx.fill();
     }
-    // ejected
     for(const e of ejected){
       const [sx,sy] = toScreen(e.x,e.y);
       ctx.fillStyle = e.color;
       ctx.beginPath(); ctx.arc(sx,sy,massToRadius(e.mass)*scale,0,Math.PI*2); ctx.fill();
     }
-    // viruses
     for(const v of viruses){
       const [sx,sy] = toScreen(v.x,v.y);
       const r = massToRadius(v.mass)*scale;
@@ -389,7 +775,6 @@
       }
       ctx.closePath(); ctx.fill(); ctx.stroke();
     }
-    // pieces sorted by mass
     const allPieces = [];
     for(const p of players){ if(!p.dead) for(const c of p.pieces) allPieces.push({p,c}); }
     allPieces.sort((a,b)=>a.c.mass-b.c.mass);
@@ -400,8 +785,8 @@
       ctx.fillStyle = p.color;
       ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 3;
       ctx.beginPath(); ctx.arc(sx,sy,r,0,Math.PI*2); ctx.fill(); ctx.stroke();
-      // name + mass
-      if(r>18){
+      const shouldLabel = (p===me || settings.showBotNames) && r>18;
+      if(shouldLabel){
         ctx.fillStyle = '#fff'; ctx.strokeStyle='rgba(0,0,0,.7)'; ctx.lineWidth=3;
         ctx.font = `bold ${Math.max(12,r*0.35)}px Arial`;
         ctx.textAlign='center'; ctx.textBaseline='middle';
