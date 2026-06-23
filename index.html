@@ -331,33 +331,24 @@ if(prey){
   b.target.x = prey.x;
   b.target.y = prey.y;
 
-  if(preyDist < cfg.splitDist && b.pieces.length < 12){
+  if(prey){
+  b.target.x = prey.x;
+  b.target.y = prey.y;
+
+  if(b.pieces.length < 12){
 
     const singleMass = myLargest.mass / 2;
     const doubleMass = myLargest.mass / 4;
     const tripleMass = myLargest.mass / 8;
 
-    // Triple nur wenn auch NACH Triple noch essbar
-    if(
-      tripleMass > prey.mass * 1.20 &&
-      preyDist < 700
-    ){
+    // Maximale sinnvolle Teilung
+    if(tripleMass > prey.mass * 1.20){
       multiSplit(b, 3);
     }
-
-    // Double nur wenn NACH Double noch essbar
-    else if(
-      doubleMass > prey.mass * 1.20 &&
-      preyDist < 500
-    ){
+    else if(doubleMass > prey.mass * 1.20){
       multiSplit(b, 2);
     }
-
-    // Normal Split nur wenn NACH Split noch essbar
-    else if(
-      singleMass > prey.mass * 1.20 &&
-      preyDist < 320
-    ){
+    else if(singleMass > prey.mass * 1.20){
       splitPlayer(b);
     }
   }
