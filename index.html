@@ -401,16 +401,26 @@
         const dx = b.x - a.x; const dy = b.y - a.y;
         const d = Math.hypot(dx, dy) || 0.01;
 
-        if(a.mergeTimer === 0 && b.mergeTimer === 0){
-          if(d < ra + rb){
-            if(a.mass >= b.mass){
-              a.mass += b.mass; p.pieces.splice(j, 1); j--;
-            } else {
-              b.mass += a.mass; p.pieces.splice(i, 1); i--; break;
-            }
-            continue;
-          }
-        }
+        if (a.mergeTimer === 0 && b.mergeTimer === 0) {
+
+  // nur wenn sie WIRKLICH stark überlappen (nicht nur berühren)
+  const tightDistance = (ra + rb) * 0.45;
+
+  if (d < tightDistance) {
+    if (a.mass >= b.mass) {
+      a.mass += b.mass;
+      p.pieces.splice(j, 1);
+      j--;
+    } else {
+      b.mass += a.mass;
+      p.pieces.splice(i, 1);
+      i--;
+      break;
+    }
+    continue;
+  }
+}
+        
 
         const overlap = (ra + rb) - d;
         if(overlap > 0){
@@ -437,8 +447,9 @@
       const dx = p.target.x - c.x; const dy = p.target.y - c.y;
       const d = Math.hypot(dx, dy) || 1;
 
-      const speedBoost = 22 + (massToRadius(half) * 0.35);
-
+     const speedBoost = 14 + (massToRadius(half) * 0.18);
+     c.boostX *= 0.75;
+      c.boostY *= 0.75;
       c.mergeTimer = 180;
       const np = makePiece(p, c.x, c.y, half, (dx/d)*speedBoost, (dy/d)*speedBoost, 180);
       newPieces.push(np);
