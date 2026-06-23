@@ -308,17 +308,8 @@
     return Math.max(0, Math.min(1, skill));
   }
   function makePiece(player, x, y, mass){
-  return {
-    x,
-    y,
-    mass,
-    vx: 0,
-    vy: 0,
-    boost: 0,
-    separated: false,
-    player
-  };
-}
+    return { x, y, mass, vx:0, vy:0, separated:false, player };
+  }
   function makePlayer(name, isBot, colorOverride){
     const color = colorOverride || COLORS[ri(COLORS.length)];
     const skill = isBot ? rollBotSkill() : 1;
@@ -505,29 +496,11 @@
     for(const c of p.pieces){
       const dx = p.target.x - c.x, dy = p.target.y - c.y;
       const d = Math.hypot(dx,dy) || 1;
-      if(c.boost > 0){
-
-  c.x += c.vx;
-  c.y += c.vy;
-
-  c.vx *= 0.92;
-  c.vy *= 0.92;
-
-  c.boost--;
-
-}else{
-
-  const s = 12 / Math.pow(c.mass, 0.22);
-
-  c.vx *= 0.85;
-  c.vy *= 0.85;
-
-  c.vx += (dx/d) * s * 0.22;
-  c.vy += (dy/d) * s * 0.22;
-
-  c.x += c.vx;
-  c.y += c.vy;
-}
+      const s = speedFor(c.mass);
+      const f = Math.min(1, d/50);
+      c.vx = (c.vx*0.7) + (dx/d)*s*f*0.3;
+      c.vy = (c.vy*0.7) + (dy/d)*s*f*0.3;
+      c.x += c.vx; c.y += c.vy;
       const r = massToRadius(c.mass);
       if(c.x<r) c.x=r; if(c.y<r) c.y=r;
       if(c.x>WORLD-r) c.x=WORLD-r; if(c.y>WORLD-r) c.y=WORLD-r;
@@ -562,7 +535,7 @@ for(let i=0;i<p.pieces.length;i++){
 
     const d = Math.hypot(dx,dy) || 0.01;
 
-    const bothReady = true;
+    const bothReady = a.separated && b.separated;
 
     // Nur mergen wenn beide wirklich getrennt wurden
     if(bothReady && d < ra + rb){
@@ -590,34 +563,24 @@ for(let i=0;i<p.pieces.length;i++){
   }
 
   function splitPlayer(p){
-
-  const newPieces = [];
-
-  for(const c of p.pieces){
-
-    if(p.pieces.length + newPieces.length >= MAX_PIECES) break;
-    if(c.mass < settings.minSplitMass) continue;
-
-    const half = c.mass / 2;
-    c.mass = half;
-
-    const dx = p.target.x - c.x;
-    const dy = p.target.y - c.y;
-
-    const len = Math.hypot(dx,dy) || 1;
-
-    const np = makePiece(p, c.x, c.y, half);
-
-    np.vx = dx / len * 34;
-    np.vy = dy / len * 34;
-
-    np.boost = 32;
-
-    newPieces.push(np);
+    const newPieces = [];
+    for(const c of p.pieces){
+      if(p.pieces.length + newPieces.length >= MAX_PIECES) break;
+      if(c.mass < settings.minSplitMass) continue;
+      const half = c.mass/2;
+      c.mass = half;
+      c.separated = false;
+      const dx = p.target.x - c.x, dy = p.target.y - c.y;
+      const d = Math.hypot(dx,dy)||1;
+      const np = makePiece(p, c.x, c.y, half);
+      np.vx = dx/d * 18; np.vy = dy/d * 18;
+      // Each half remembers the other so we can require real separation
+      // between this specific pair before they're allowed to re-merge.
+      np.splitPartner = c; c.splitPartner = np;
+      newPieces.push(np);
+    }
+    p.pieces.push(...newPieces);
   }
-
-  p.pieces.push(...newPieces);
-}
 
   // Multi-split helper for "Double" (2x) and "Triple" (3x) buttons.
   // Each call is just splitPlayer() invoked back-to-back; a tiny delay
