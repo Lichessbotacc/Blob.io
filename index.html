@@ -404,21 +404,20 @@
         if (a.mergeTimer === 0 && b.mergeTimer === 0) {
 
   // nur wenn sie WIRKLICH stark überlappen (nicht nur berühren)
-  const tightDistance = (ra + rb) * 0.45;
+  const mergeDistance = (ra + rb) * 0.78;
 
-  if (d < tightDistance) {
-    if (a.mass >= b.mass) {
-      a.mass += b.mass;
-      p.pieces.splice(j, 1);
-      j--;
-    } else {
-      b.mass += a.mass;
-      p.pieces.splice(i, 1);
-      i--;
-      break;
-    }
-    continue;
-  }
+if (d < mergeDistance) {
+  const big = a.mass >= b.mass ? a : b;
+  const small = a.mass >= b.mass ? b : a;
+
+  big.mass += small.mass;
+
+  // kleiner "snap" Effekt
+  big.boostX += (big.x - small.x) * 0.05;
+  big.boostY += (big.y - small.y) * 0.05;
+
+  p.pieces.splice(p.pieces.indexOf(small), 1);
+  continue;
 }
         
 
