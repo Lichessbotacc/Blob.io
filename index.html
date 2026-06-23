@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-<title>Blob.io 1zu1 Offline (Instant Merge)</title>
+<title>Blob.io 1zu1 Offline (Instant Merge & AI Plus)</title>
 <style>
   :root{
     --ui-bg: rgba(0,0,0,.6);
@@ -26,10 +26,23 @@
     margin-top:max(0px, env(safe-area-inset-top));
   }
 
+  /* SPECTATOR BANNER */
+  #spectateBanner {
+    position: fixed; top: 10px; left: 50%; transform: translateX(-50%);
+    background: var(--ui-bg); padding: 6px 16px; border-radius: 20px;
+    display: none; align-items: center; gap: 14px; font-size: 13px; z-index: 25;
+    padding-top: max(6px, env(safe-area-inset-top)); border: 1px solid rgba(255,255,255,0.1);
+  }
+  #spectateBanner button {
+    background: var(--accent); border: none; color: #fff; padding: 4px 12px;
+    border-radius: 12px; font-size: 12px; font-weight: bold; cursor: pointer;
+  }
+
   #overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.75);z-index:20}
   #overlay .box{background:#222;padding:24px 32px;border-radius:8px;text-align:center;box-shadow:0 8px 30px rgba(0,0,0,.5);width:360px;max-width:90vw;}
   #overlay input{padding:8px;font-size:16px;border-radius:4px;border:none;background:#111;color:#fff;width:100%;margin:12px 0;text-align:center}
-  #overlay button.primary{padding:8px 20px;font-size:16px;background:var(--accent);border:none;color:#fff;border-radius:4px;cursor:pointer;width:100%;font-weight:bold}
+  #overlay button.primary{padding:8px 20px;font-size:16px;background:var(--accent);border:none;color:#fff;border-radius:4px;cursor:pointer;font-weight:bold; width:100%;}
+  #overlay button.secondary{background:#444; margin-top:8px;}
 
   #settingsPanel{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.7);z-index:30}
   #settingsPanel .box{background:#1c1c1c;padding:20px 24px;border-radius:8px;width:340px;max-width:92vw;max-height:85vh;overflow-y:auto;}
@@ -49,7 +62,6 @@
   #touchControls button{width:64px;height:64px;border-radius:50%;border:2px solid rgba(255,255,255,.3);background:rgba(0,0,0,.5);color:#fff;font-size:13px;font-weight:bold;display:flex;align-items:center;justify-content:center;user-select:none;}
   #touchControls button.split{background:rgba(76,175,80,.6)}
   #touchControls button.throw{background:rgba(251,140,0,.6)}
-  body.touch-mode #touchControls{display:flex}
 </style>
 </head>
 <body>
@@ -57,6 +69,11 @@
 <div id="hud">Masse: <span id="mass">0</span></div>
 <div id="leaderboard"><h3>Bestenliste</h3><div id="lblist"></div></div>
 <button id="settingsBtn" title="Einstellungen">⚙</button>
+
+<div id="spectateBanner">
+  <span>👁️ Zuschauermodus | Verfolgt: <b id="specPlayerName" style="color:#ffd54f">...</b></span>
+  <button id="btnStopSpectate">Mitspielen</button>
+</div>
 
 <div id="touchControls">
   <button class="split" id="btnSplit">Split</button>
@@ -70,7 +87,10 @@
     <h2>Blob.io Offline</h2>
     <p style="color:#aaa;font-size:14px;">Modus: <b>True Instant Merge</b></p>
     <div><input id="name" maxlength="15" placeholder="Dein Name" value="Spieler"/></div>
-    <div><button class="primary" id="play">Spielen</button></div>
+    <div style="display:flex; gap:10px; margin-top:12px">
+      <button class="primary" id="play" style="flex:2">Spielen</button>
+      <button class="primary secondary" id="btnSpectate" style="flex:1">Zuschauen</button>
+    </div>
     <p style="font-size:12px;opacity:.7;margin-top:14px">Maus = Bewegen · Leertaste = Split · W = Auswerfen<br>D = Double Split · T = Triple Split</p>
     <p style="font-size:12px;margin-top:6px"><a href="#" id="openSettingsFromMenu" style="color:#4caf50;text-decoration:none;">⚙ Einstellungen</a></p>
   </div>
@@ -119,6 +139,11 @@
   const ctx = canvas.getContext('2d');
   const overlay = document.getElementById('overlay');
   const playBtn = document.getElementById('play');
+  const btnSpectate = document.getElementById('btnSpectate');
+  const spectateBanner = document.getElementById('spectateBanner');
+  const btnStopSpectate = document.getElementById('btnStopSpectate');
+  const specPlayerName = document.getElementById('specPlayerName');
+
   const nameInput = document.getElementById('name');
   const massEl = document.getElementById('mass');
   const lbList = document.getElementById('lblist');
@@ -131,7 +156,6 @@
     foodCount: 900,
     virusCount: 30,
     botCount: 20,
-    showBotNames: true,
     massDecay: true,
     minSplitMass: 36,
     forceTouchControls: false
@@ -169,6 +193,14 @@
   const COLORS = ['#e53935','#fb8c00','#fdd835','#43a047','#1e88e5','#5e35b1','#d81b60','#00897b','#3949ab','#7cb342'];
   const BOT_NAMES = ['BlobKing','Toxic','Zero','Rush','Titan','Fury','Shadow','WunWun','Solo','Splitz','Ghost','Agario','Mars','Swift','Alpha','Hunter','Apex','Synergy'];
 
+  // BOT ARCHETYPEN DEFINITION
+  const BOT_STYLES = [
+    { type: 'Aggressiv', splitDist: 340, huntRatio: 1.80, delay: 50 },  // Teilt oft und sehr riskant
+    { type: 'Defensiv',  splitDist: 240, huntRatio: 2.80, delay: 110 }, // Teilt extrem selten, flieht früh
+    { type: 'Splitter',  splitDist: 380, huntRatio: 2.05, delay: 40 },  // Liebt Double-Splits
+    { type: 'Ruhig',     splitDist: 300, huntRatio: 2.35, delay: 85 }   // Standard Balanced AI
+  ];
+
   let W = innerWidth, H = innerHeight;
   function resize(){ W = innerWidth; H = innerHeight; canvas.width = W; canvas.height = H; }
   addEventListener('resize', resize); resize();
@@ -194,35 +226,48 @@
   const speedFor = m => 2.2 * Math.pow(m, -0.22) * 4.0;
 
   let foods = [], viruses = [], players = [], ejected = [];
-  let me = null, running = false;
+  let me = null, running = false, spectating = false;
 
   function makeFood(){ return { x: rand(15,WORLD-15), y: rand(15,WORLD-15), r: 5, color: COLORS[ri(COLORS.length)], mass: 1 }; }
   function makeVirus(){ return { x: rand(200,WORLD-200), y: rand(200,WORLD-200), mass: VIRUS_MASS, color: '#33d17a' }; }
 
-  // mergeTimer in Millisekunden! (Framerate-unabhängig)
   function makePiece(player, x, y, mass, bX = 0, bY = 0, mergeTimer = 0){
     return { x, y, mass, boostX: bX, boostY: bY, player, mergeTimer };
   }
   
-  function makePlayer(name, isBot){
-    const p = { name, color: COLORS[ri(COLORS.length)], isBot, dead:false, pieces:[], target:{x:WORLD/2,y:WORLD/2}, nextAI:0 };
+  function makePlayer(name, isBot, initialMass = 20){
+    const styleObj = isBot ? BOT_STYLES[ri(BOT_STYLES.length)] : null;
+    const p = { 
+      name, color: COLORS[ri(COLORS.length)], isBot, dead: false, pieces: [], 
+      target: {x: WORLD/2, y: WORLD/2}, nextAI: 0,
+      style: styleObj ? styleObj.type : 'Player',
+      aiCfg: styleObj
+    };
     const x = rand(400,WORLD-400), y = rand(400,WORLD-400);
-    p.pieces.push(makePiece(p, x, y, 20));
+    p.pieces.push(makePiece(p, x, y, initialMass));
     p.target.x = x; p.target.y = y;
     return p;
   }
 
-  function init(name){
+  function init(name, isSpec = false){
+    spectating = isSpec;
     foods = []; viruses = []; players = []; ejected = [];
     for(let i=0;i<settings.foodCount;i++) foods.push(makeFood());
     for(let i=0;i<settings.virusCount;i++) viruses.push(makeVirus());
-    me = makePlayer(name || 'Spieler', false); me.color = '#1e88e5';
-    players.push(me);
+    
     let shuffled = BOT_NAMES.slice().sort(()=>Math.random()-0.5);
     for(let i=0;i<settings.botCount;i++){
-      const b = makePlayer(shuffled[i%shuffled.length], true);
-      b.pieces[0].mass = rand(20, 80);
+      const botStartMass = rand(10, 100); // <-- BOTS STARTEN RANDOM ZWISCHEN 10 UND 100
+      const b = makePlayer(shuffled[i%shuffled.length], true, botStartMass);
       players.push(b);
+    }
+
+    if(!isSpec){
+      me = makePlayer(name || 'Spieler', false, 50); // <-- ECHTER SPIELER STARTET MIT 50
+      me.color = '#1e88e5';
+      players.push(me);
+    } else {
+      me = null;
     }
   }
 
@@ -235,79 +280,99 @@
   }
   const largestPiece = p => p.pieces.reduce((a,b)=> b.mass>a.mass? b:a, p.pieces[0]);
 
+  // ---------------------------------------------------------------------
+  // NEUE BOT KI (Kaskade: Flucht -> Re-Merge -> Spieler -> Viren -> Futter)
+  // ---------------------------------------------------------------------
   function updateBot(b, now){
     if(now < b.nextAI) return;
-    b.nextAI = now + rand(50, 120);
+    const cfg = b.aiCfg || BOT_STYLES[3];
+    b.nextAI = now + rand(cfg.delay * 0.8, cfg.delay * 1.2);
 
-    const c = playerCenter(b); const bMass = playerMass(b); const myLargest = largestPiece(b);
+    const c = playerCenter(b); 
+    const myLargest = largestPiece(b);
 
-    if (bMass < 130) {
-      let targetPlayer = null, pDist = 1000;
-      for(const p of players){
-        if(p === b || p.dead) continue;
-        const pm = largestPiece(p);
-        if(myLargest.mass > pm.mass * 1.3){
-          const d = Math.hypot(pm.x - c.x, pm.y - c.y);
-          if(d < pDist) { pDist = d; targetPlayer = pm; }
-        }
-      }
-      if(targetPlayer){
-        b.target.x = targetPlayer.x; b.target.y = targetPlayer.y;
-        if(pDist < 280 && myLargest.mass > targetPlayer.mass * 2.3 && b.pieces.length < 4){ splitPlayer(b); return; }
-      } else {
-        let bestF = null, bestFD = Infinity;
-        for(let i=0; i<30; i++){
-          const f = foods[Math.floor(Math.random()*foods.length)]; if(!f) continue;
-          const d = (f.x-c.x)**2 + (f.y-c.y)**2;
-          if(d < bestFD){ bestFD = d; bestF = f; }
-        }
-        if(bestF){ b.target.x = bestF.x; b.target.y = bestF.y; }
-      }
-    } else {
-      let targetVirus = null, vDist = 1200;
-      for(const v of viruses){
-        const d = Math.hypot(v.x - c.x, v.y - c.y);
-        if(d < vDist){ vDist = d; targetVirus = v; }
-      }
-      if(targetVirus){
-        b.target.x = targetVirus.x; b.target.y = targetVirus.y;
-      } else {
-        let prey = null, dMin = 1200;
-        for(const p of players){
-          if(p===b||p.dead) continue;
-          const pm = largestPiece(p);
-          if(myLargest.mass > pm.mass * 1.3){
-            const d = Math.hypot(pm.x-c.x, pm.y-c.y);
-            if(d<dMin){ dMin=d; prey=pm; }
-          }
-        }
-        if(prey){
-          b.target.x = prey.x; b.target.y = prey.y;
-          if(dMin < 350 && myLargest.mass > prey.mass * 2.3 && b.pieces.length < 5) splitPlayer(b);
-        }
-      }
-    }
-
+    // --- PRIORITÄT 0: ÜBERLEBENS-FLUCHT ---
+    const dangerRatio = b.style === 'Defensiv' ? 1.15 : 1.28;
     for(const p of players){
       if(p === b || p.dead) continue;
       const pm = largestPiece(p);
-      if(pm.mass > myLargest.mass * 1.2){
-        if(Math.hypot(pm.x - c.x, pm.y - c.y) < 450 + massToRadius(pm.mass)){
-          b.target.x = c.x + (c.x - pm.x) * 2; b.target.y = c.y + (c.y - pm.y) * 2; break;
+      if(pm.mass > myLargest.mass * dangerRatio){
+        const dist = Math.hypot(pm.x - c.x, pm.y - c.y);
+        if(dist < 420 + massToRadius(pm.mass)){
+          b.target.x = c.x + (c.x - pm.x) * 2;
+          b.target.y = c.y + (c.y - pm.y) * 2;
+          keepTargetInWorld(b.target);
+          return;
         }
       }
     }
 
-    if(c.x < 150) b.target.x += 300; if(c.x > WORLD-150) b.target.x -= 300;
-    if(c.y < 150) b.target.y += 300; if(c.y > WORLD-150) b.target.y -= 300;
+    // --- PRIORITÄT 0.5: SOFORT-MERGE REFLEX ---
+    // Wenn aufgeteilt, alle Timer abgelaufen und keine akute Gefahr -> Cursor ins eigene Zentrum legen!
+    if(b.pieces.length > 1 && b.pieces.every(pc => pc.mergeTimer === 0)){
+      b.target.x = c.x;
+      b.target.y = c.y;
+      return; 
+    }
+
+    // --- HAUPTZIEL (PRIO 1): SPIELER JAGEN ---
+    let prey = null, preyDist = Infinity;
+    for(const p of players){
+      if(p === b || p.dead) continue;
+      for(const targetPiece of p.pieces){
+        if(myLargest.mass > targetPiece.mass * 1.18){ // Essbar?
+          const dist = Math.hypot(targetPiece.x - c.x, targetPiece.y - c.y);
+          if(dist < preyDist){ preyDist = dist; prey = targetPiece; }
+        }
+      }
+    }
+
+    if(prey){
+      b.target.x = prey.x; b.target.y = prey.y;
+      // Reicht die Masse für einen Split-Kill?
+      if(preyDist < cfg.splitDist && myLargest.mass > prey.mass * cfg.huntRatio && b.pieces.length < 12){
+        splitPlayer(b);
+        if(b.style === 'Splitter' && Math.random() < 0.40) setTimeout(() => splitPlayer(b), 45); // Double Split!
+      }
+      keepTargetInWorld(b.target);
+      return;
+    }
+
+    // --- ZIEL 2 (PRIO 2): VIREN ANVISIEREN ---
+    // Macht nur Sinn, wenn man über 130 Masse hat (sonst ghostet man durch) und noch Platz zum Splitten hat
+    if(myLargest.mass >= 135 && b.pieces.length < 10 && b.style !== 'Defensiv'){
+      let nearestVirus = null, vDist = Infinity;
+      for(const v of viruses){
+        const dist = Math.hypot(v.x - c.x, v.y - c.y);
+        if(dist < vDist && dist < 750){ vDist = dist; nearestVirus = v; }
+      }
+      if(nearestVirus){
+        b.target.x = nearestVirus.x; b.target.y = nearestVirus.y;
+        keepTargetInWorld(b.target);
+        return;
+      }
+    }
+
+    // --- ZIEL 3 (PRIO 3): KLEINE PUNKTE (FUTTER) ---
+    let bestFood = null, fDist = Infinity;
+    for(let i=0; i<30; i++){
+      const f = foods[Math.floor(Math.random()*foods.length)];
+      if(!f) continue;
+      const dist = Math.hypot(f.x - c.x, f.y - c.y);
+      if(dist < fDist){ fDist = dist; bestFood = f; }
+    }
+    if(bestFood){ b.target.x = bestFood.x; b.target.y = bestFood.y; }
+
+    keepTargetInWorld(b.target);
   }
 
-  // ---------------------------------------------------------------------
-  // TRUE INSTANT MERGE PHYSICS
-  // ---------------------------------------------------------------------
+  function keepTargetInWorld(t){
+    t.x = Math.max(100, Math.min(WORLD - 100, t.x));
+    t.y = Math.max(100, Math.min(WORLD - 100, t.y));
+  }
+
   function movePlayer(p, dt){
     for(const c of p.pieces){
-      // Cooldown-Timer für das Zusammenwachsen runterzählen
       if(c.mergeTimer > 0) c.mergeTimer = Math.max(0, c.mergeTimer - dt);
 
       const dx = p.target.x - c.x; const dy = p.target.y - c.y;
@@ -329,7 +394,6 @@
       if(c.y > WORLD - r) { c.y = WORLD - r; c.boostY = 0; }
     }
 
-    // Zell-Interaktion
     for(let i=0; i<p.pieces.length; i++){
       for(let j=i+1; j<p.pieces.length; j++){
         const a = p.pieces[i]; const b = p.pieces[j];
@@ -337,11 +401,8 @@
         const dx = b.x - a.x; const dy = b.y - a.y;
         const d = Math.hypot(dx, dy) || 0.01;
 
-        // MAGNET-SNAP FUSION: 
-        // Wenn bei BEIDEN Zellen der 180ms-Timer auf 0 steht und sich die Hüllen berühren -> Sofort einsaugen!
         if(a.mergeTimer === 0 && b.mergeTimer === 0){
           if(d < ra + rb){
-            // Die größere Zelle schluckt die kleinere
             if(a.mass >= b.mass){
               a.mass += b.mass; p.pieces.splice(j, 1); j--;
             } else {
@@ -351,7 +412,6 @@
           }
         }
 
-        // Solange der Timer noch läuft (Zellen fliegen frisch auseinander): Bouncing-Ball Abstoßung
         const overlap = (ra + rb) - d;
         if(overlap > 0){
           const nx = dx / d; const ny = dy / d;
@@ -377,10 +437,8 @@
       const dx = p.target.x - c.x; const dy = p.target.y - c.y;
       const d = Math.hypot(dx, dy) || 1;
 
-      // Echte Agario-Schubkraft (skaliert mit der Größe der Zelle!)
       const speedBoost = 22 + (massToRadius(half) * 0.35);
 
-      // BEIDE Hälften kriegen exakt 180ms Fusions-Sperre. Danach instant Merge!
       c.mergeTimer = 180;
       const np = makePiece(p, c.x, c.y, half, (dx/d)*speedBoost, (dy/d)*speedBoost, 180);
       newPieces.push(np);
@@ -428,9 +486,6 @@
     }
   }
 
-  // ---------------------------------------------------------------------
-  // KORRIGIERTE VIREN-LOGIK (GHOSTING UNTER 130 MASSE)
-  // ---------------------------------------------------------------------
   function virusHit(){
     for(const p of players){
       if(p.dead) continue;
@@ -441,16 +496,16 @@
           const v = viruses[vi];
           if(Math.hypot(c.x - v.x, c.y - v.y) < r){
             
-            // NUR WENN MASSE >= 130 IST, GIBT ES EINE KOLLISION!
             if(c.mass >= 130) {
               c.mass += 100;
               viruses[vi] = makeVirus();
 
-              const maxSplits = Math.min(MAX_PIECES - p.pieces.length, 6);
-              if(maxSplits > 1){
+              // --- MAXIMAL ZU 16 TEILEN AUFTEILEN ---
+              const maxSplits = Math.min(16 - p.pieces.length, 6); 
+              if(maxSplits > 0){
                 const pieceMass = c.mass / (maxSplits + 1);
                 c.mass = pieceMass;
-                c.mergeTimer = 250; // Auch Viren-Splits kriegen kurzen Cooldown
+                c.mergeTimer = 250; 
                 for(let k=0; k<maxSplits; k++){
                   const ang = Math.random() * Math.PI * 2; const force = rand(16, 28);
                   const np = makePiece(p, c.x, c.y, pieceMass, Math.cos(ang)*force, Math.sin(ang)*force, 250);
@@ -458,8 +513,6 @@
                 }
               }
             }
-            // WENN MASSE < 130 IST -> PASSIERT GAR NICHTS! DU GLEITEST DURCH!
-            
           }
         }
       }
@@ -499,19 +552,35 @@
       if(p === me) continue;
       if(p.dead){
         const names = BOT_NAMES.slice().sort(()=>Math.random()-0.5);
-        const nb = makePlayer(names[0], true); nb.pieces[0].mass = rand(20, 60);
+        const botStartMass = rand(10, 100);
+        const nb = makePlayer(names[0], true, botStartMass);
         Object.assign(p, nb); p.dead = false;
       }
     }
   }
 
+  // ERMITTELT DAS KAMERA-ZIEL (Eigener Spieler oder Rang #1 im Spectate)
+  function getCamera(){
+    if(!spectating && me && !me.dead){
+      return { center: playerCenter(me), scale: getScale(me), target: me };
+    }
+    const alive = players.filter(p => !p.dead);
+    alive.sort((a,b) => playerMass(b) - playerMass(a));
+    const leader = alive[0];
+    if(leader){
+      if(spectating) specPlayerName.textContent = leader.name + ` (${leader.style})`;
+      return { center: playerCenter(leader), scale: getScale(leader), target: leader };
+    }
+    return { center: {x: WORLD/2, y: WORLD/2}, scale: 0.2, target: null };
+  }
+
   function step(dt){
     for(const p of players){ if(p.isBot && !p.dead) updateBot(p, performance.now()); }
-    if(me && !me.dead){
+    if(!spectating && me && !me.dead){
       const c = playerCenter(me), scale = getScale(me);
       me.target.x = c.x + (mouse.x - W/2) / scale; me.target.y = c.y + (mouse.y - H/2) / scale;
     }
-    for(const p of players){ if(!p.dead) movePlayer(p, dt); } // dt weitergeben!
+    for(const p of players){ if(!p.dead) movePlayer(p, dt); } 
     for(let i=ejected.length-1; i>=0; i--){
       const e = ejected[i]; e.x += e.vx; e.y += e.vy; e.vx *= 0.90; e.vy *= 0.90; e.life--;
       if(e.life <= 0){ foods.push({ x: e.x, y: e.y, r: 5, color: e.color, mass: e.mass }); ejected.splice(i, 1); }
@@ -535,8 +604,9 @@
   }
 
   function draw(){
-    ctx.fillStyle = '#f5f5f5'; ctx.fillRect(0,0,W,H); if(!me) return;
-    const c = playerCenter(me), scale = getScale(me); drawGrid(c.x, c.y, scale);
+    ctx.fillStyle = '#f5f5f5'; ctx.fillRect(0,0,W,H); 
+    const cam = getCamera(); if(!cam || !cam.center) return;
+    const c = cam.center, scale = cam.scale; drawGrid(c.x, c.y, scale);
     const toScreen = (x,y) => [(x-c.x)*scale + W/2, (y-c.y)*scale + H/2];
 
     for(const f of foods){
@@ -582,13 +652,24 @@
   }
 
   function updateHud(){
-    if(!me) return; massEl.textContent = Math.floor(playerMass(me));
-    const ranked = players.filter(p=>!p.dead).map(p=>({n:p.name, m:playerMass(p), me:p===me})).sort((a,b)=>b.m-a.m).slice(0,10);
-    lbList.innerHTML = ranked.map((r,i)=> `<div class="row"><span>${i+1}. ${r.me?'<b style="color:#ffd54f">'+r.n+'</b>':r.n}</span><span>${Math.floor(r.m)}</span></div>` ).join('');
+    const cam = getCamera();
+    if(spectating && cam.target){
+      massEl.textContent = Math.floor(playerMass(cam.target));
+    } else if(me && !me.dead){
+      massEl.textContent = Math.floor(playerMass(me));
+    } else {
+      massEl.textContent = "0";
+    }
+
+    const showTouch = running && !spectating && me && !me.dead && (settings.forceTouchControls || isTouchDevice());
+    document.getElementById('touchControls').style.display = showTouch ? 'flex' : 'none';
+
+    const ranked = players.filter(p=>!p.dead).map(p=>({n:p.name, m:playerMass(p), isMe:p===me})).sort((a,b)=>b.m-a.m).slice(0,10);
+    lbList.innerHTML = ranked.map((r,i)=> `<div class="row"><span>${i+1}. ${r.isMe?'<b style="color:#ffd54f">'+r.n+'</b>':r.n}</span><span>${Math.floor(r.m)}</span></div>` ).join('');
   }
 
   addEventListener('keydown', e => {
-    if(!running || !me || me.dead) return;
+    if(!running || spectating || !me || me.dead) return;
     if(e.code === 'Space'){ e.preventDefault(); splitPlayer(me); }
     else if(e.code === 'KeyW') ejectMass(me);
     else if(e.code === 'KeyD') multiSplit(me, 2);
@@ -596,8 +677,8 @@
   });
 
   function bindHoldButton(el, fn){
-    el.addEventListener('touchstart', e => { e.preventDefault(); if(running && me && !me.dead) fn(); }, {passive:false});
-    el.addEventListener('click', e => { if(running && me && !me.dead) fn(); });
+    el.addEventListener('touchstart', e => { e.preventDefault(); if(running && !spectating && me && !me.dead) fn(); }, {passive:false});
+    el.addEventListener('click', e => { if(running && !spectating && me && !me.dead) fn(); });
   }
   bindHoldButton(document.getElementById('btnSplit'), () => splitPlayer(me));
   bindHoldButton(document.getElementById('btnThrow'), () => ejectMass(me));
@@ -609,7 +690,23 @@
   requestAnimationFrame(loop);
 
   function gameOver(){ running = false; overlay.style.display = 'flex'; }
-  playBtn.addEventListener('click', () => { init(nameInput.value.trim() || 'Spieler'); overlay.style.display = 'none'; running = true; });
+  
+  playBtn.addEventListener('click', () => { 
+    init(nameInput.value.trim() || 'Spieler', false); 
+    overlay.style.display = 'none'; spectateBanner.style.display = 'none'; 
+    running = true; 
+  });
+
+  btnSpectate.addEventListener('click', () => { 
+    init('', true); 
+    overlay.style.display = 'none'; spectateBanner.style.display = 'flex'; 
+    running = true; 
+  });
+
+  btnStopSpectate.addEventListener('click', () => { 
+    running = false; spectating = false;
+    spectateBanner.style.display = 'none'; overlay.style.display = 'flex'; 
+  });
 })();
 </script>
 </body>
