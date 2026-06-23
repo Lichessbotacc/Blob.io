@@ -366,109 +366,131 @@
   //    occasionally splits pointlessly or wanders into a virus by accident
   // ---------------------------------------------------------------------
   function updateBot(b, now){
-    const c = playerCenter(b);
-    const bm = playerMass(b);
-    const aggro = settings.botAggro / 100; // 0..1 global slider
-    const skill = b.skill;                 // 0..1 per-bot individual skill
-    const bs = b.botState;
+  const c = playerCenter(b);
+  const bm = playerMass(b);
+  const skill = b.skill;
+  const aggro = settings.botAggro / 100;
 
-    // Skilled bots notice things from farther away and react with less delay;
-    // weak bots are nearsighted and slow on the uptake.
-    const sightMult = 0.65 + skill * 0.7;       // ~0.65x .. 1.35x range
-    const threatRange = 550 * sightMult;
-    const preyRange = 500 * sightMult;
-    const virusAwareRange = 260 * sightMult;
+  let biggestThreat = null;
+  let biggestThreatD = Infinity;
 
-    // Find nearby threats and prey among other players
-    let nearestThreat = null, threatD = Infinity;
-    let nearestPrey = null, preyD = Infinity;
-    for(const p of players){
-      if(p===b||p.dead) continue;
-      const pc = playerCenter(p), pm = playerMass(p);
-      const d2 = (pc.x-c.x)**2+(pc.y-c.y)**2;
-      if(pm > bm*1.2 && d2 < (threatRange*threatRange)){
-        if(d2<threatD){ threatD=d2; nearestThreat={pc,pm,p}; }
-      } else if(pm < bm*0.75 && d2 < (preyRange*preyRange)){
-        if(d2<preyD){ preyD=d2; nearestPrey={pc,pm,p}; }
+  let bestPrey = null;
+  let bestPreyD = Infinity;
+
+  for(const p of players){
+    if(p === b || p.dead) continue;
+
+    const pc = playerCenter(p);
+    const enemyBiggest = largestPiece(p).mass;
+    const myBiggest = largestPiece(b).mass;
+
+    const d = Math.hypot(pc.x - c.x, pc.y - c.y);
+
+    // Gefahr erkennen
+    if(enemyBiggest > myBiggest * 1.15){
+      if(d < biggestThreatD){
+        biggestThreatD = d;
+        biggestThreat = p;
       }
     }
 
-    // Find nearest virus
-    let nearestVirus = null, virusD = Infinity;
-    for(const v of viruses){
-      const d2=(v.x-c.x)**2+(v.y-c.y)**2;
-      if(d2<virusD){ virusD=d2; nearestVirus=v; }
-    }
-
-    // A low-skill bot occasionally just fails to notice a real threat in time —
-    // it "sees" it but reacts a beat late, represented here as a chance to
-    // simply ignore a borderline-range threat this tick.
-    const noticesThreat = nearestThreat && (threatD < (threatRange*0.55)**2 || Math.random() > bs.mistakeChance);
-
-    // --- Decide mode ---
-    if(nearestThreat && threatD < threatRange*threatRange && noticesThreat){
-      bs.mode = 'flee';
-    } else if(nearestPrey && preyD < preyRange*preyRange && Math.random() < (0.25+aggro*0.6)*(0.5+skill*0.5)){
-      bs.mode = 'chase';
-    } else if(nearestVirus && virusD < virusAwareRange*virusAwareRange && bm > 220 && Math.random() < aggro*0.4*(0.5+skill*0.5)){
-      // Bigger, sharper bots deliberately pop a virus to fragment away from a
-      // chaser or spread mass; this is a deliberate, skill-weighted choice.
-      bs.mode = 'virusHunt';
-    } else {
-      bs.mode = 'roam';
-      if(now > bs.decisionAt){
-        bs.decisionAt = now + rand(1500, 4000) + bs.reactionDelay;
-        let best=null, bestD=Infinity;
-        for(let i=0;i<40;i++){
-          const f = foods[ri(foods.length)];
-          if(!f) continue;
-          const d=(f.x-c.x)**2+(f.y-c.y)**2;
-          if(d<bestD){bestD=d;best=f;}
-        }
-        if(best){ b.target.x = best.x; b.target.y = best.y; }
-        else { b.target.x = rand(0,WORLD); b.target.y = rand(0,WORLD); }
+    // Beute erkennen
+    if(enemyBiggest * 1.3 < myBiggest){
+      if(d < bestPreyD){
+        bestPreyD = d;
+        bestPrey = p;
       }
-    }
-
-    if(bs.mode === 'flee'){
-      const pc = nearestThreat.pc;
-      // Skilled bots flee in a clean straight line away; clumsy bots flee at
-      // a slightly wrong angle, like a player who panics and doesn't aim well.
-      const wobble = (1-skill) * 0.6;
-      const ang = Math.atan2(c.y-pc.y, c.x-pc.x) + rand(-wobble, wobble);
-      const fleeDist = 400;
-      b.target.x = c.x + Math.cos(ang)*fleeDist;
-      b.target.y = c.y + Math.sin(ang)*fleeDist;
-      // panic-split-away if cornered and big enough: throw a piece off to gain
-      // a speed burst. Skilled bots do this more decisively when truly cornered;
-      // unskilled bots rarely pull it off in time.
-      const panicChance = 0.004 + skill*0.012;
-      if(bm > settings.minSplitMass*1.5 && now > bs.ejectCooldownUntil && threatD < (threatRange*0.4)**2 && Math.random() < panicChance){
-        bs.ejectCooldownUntil = now + 3000;
-        ejectMass(b);
-      }
-    } else if(bs.mode === 'chase'){
-      const pc = nearestPrey.pc, pm = nearestPrey.pm;
-      b.target.x = pc.x; b.target.y = pc.y;
-      // Occasionally split to close distance / secure the kill, like a human
-      // would. Skilled bots demand a bigger safety margin AND time it tighter
-      // (closer range); unskilled bots split more recklessly/too early, which
-      // sometimes wastes the split for no real gain.
-      const myBiggest = largestPiece(b).mass;
-      const requiredEdge = 2.6 - skill*0.8;     // sharks need less of an edge to commit
-      const splitRange = 360 + (1-skill)*120;   // clumsy bots commit from too far away
-      if(myBiggest > settings.minSplitMass*1.4 &&
-         myBiggest > pm*requiredEdge &&
-         preyD < splitRange*splitRange &&
-         now > bs.splitCooldownUntil &&
-         Math.random() < (0.12 + aggro*0.45)*(0.4+skill*0.6)){
-        bs.splitCooldownUntil = now + rand(3000,6000) - skill*1000;
-        splitPlayer(b);
-      }
-    } else if(bs.mode === 'virusHunt'){
-      b.target.x = nearestVirus.x; b.target.y = nearestVirus.y;
     }
   }
+
+  // FLIEHEN
+  if(biggestThreat && biggestThreatD < 800){
+    const tc = playerCenter(biggestThreat);
+
+    let dx = c.x - tc.x;
+    let dy = c.y - tc.y;
+
+    const len = Math.hypot(dx,dy) || 1;
+
+    dx /= len;
+    dy /= len;
+
+    b.target.x = c.x + dx * 800;
+    b.target.y = c.y + dy * 800;
+
+    return;
+  }
+
+  // JAGEN
+  if(bestPrey && bestPreyD < 1000){
+    const tc = playerCenter(bestPrey);
+
+    b.target.x = tc.x;
+    b.target.y = tc.y;
+
+    const myBiggest = largestPiece(b).mass;
+    const preyBiggest = largestPiece(bestPrey).mass;
+
+    if(
+      myBiggest > preyBiggest * 2.2 &&
+      bestPreyD < 300 &&
+      Math.random() < (0.25 + aggro * 0.5)
+    ){
+      splitPlayer(b);
+    }
+
+    return;
+  }
+
+  // FOOD FARMING
+  let bestFood = null;
+  let bestFoodD = Infinity;
+
+  for(let i=0;i<50;i++){
+    const f = foods[Math.floor(Math.random()*foods.length)];
+    if(!f) continue;
+
+    const d =
+      (f.x-c.x)*(f.x-c.x)+
+      (f.y-c.y)*(f.y-c.y);
+
+    if(d < bestFoodD){
+      bestFoodD = d;
+      bestFood = f;
+    }
+  }
+
+  if(bestFood){
+    b.target.x = bestFood.x;
+    b.target.y = bestFood.y;
+  }
+
+  // WANDVERMEIDUNG
+  const margin = 300;
+
+  if(c.x < margin) b.target.x += 600;
+  if(c.x > WORLD-margin) b.target.x -= 600;
+
+  if(c.y < margin) b.target.y += 600;
+  if(c.y > WORLD-margin) b.target.y -= 600;
+
+  // VIRUSVERMEIDUNG
+  if(largestPiece(b).mass > 150){
+    for(const v of viruses){
+      const d = Math.hypot(v.x-c.x, v.y-c.y);
+
+      if(d < 180){
+        const dx = c.x - v.x;
+        const dy = c.y - v.y;
+        const len = Math.hypot(dx,dy) || 1;
+
+        b.target.x = c.x + dx/len * 500;
+        b.target.y = c.y + dy/len * 500;
+        break;
+      }
+    }
+  }
+}
 
   function movePlayer(p){
     for(const c of p.pieces){
@@ -505,8 +527,7 @@
         const ra=massToRadius(a.mass), rb=massToRadius(b.mass);
         const dx=b.x-a.x, dy=b.y-a.y;
         const d=Math.hypot(dx,dy)||0.01;
-        const bothReady = a.separated && b.separated;
-        if(bothReady && d < (ra+rb)*0.6){
+        if(d < ra + rb){
           a.mass += b.mass; p.pieces.splice(j,1); j--; continue;
         }
         // keep pieces from passing through each other while not yet mergeable
