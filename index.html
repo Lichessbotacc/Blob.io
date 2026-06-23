@@ -404,23 +404,26 @@
         if (a.mergeTimer === 0 && b.mergeTimer === 0) {
 
   // nur wenn sie WIRKLICH stark überlappen (nicht nur berühren)
-  const tightDistance = (ra + rb) * 0.45;
+  const mergeDistance = (ra + rb) * 0.62; // nicht zu früh, nicht nur Touch
 
-  if (d < tightDistance) {
-    if (a.mass >= b.mass) {
-      a.mass += b.mass;
-      p.pieces.splice(j, 1);
-      j--;
-    } else {
-      b.mass += a.mass;
-      p.pieces.splice(i, 1);
-      i--;
-      break;
-    }
+if (a.mergeTimer === 0 && b.mergeTimer === 0) {
+  if (d < mergeDistance) {
+    const total = a.mass + b.mass;
+
+    // smooth "snap merge" wie Agar
+    const bigger = a.mass >= b.mass ? a : b;
+    const smaller = a.mass >= b.mass ? b : a;
+
+    bigger.mass = total;
+
+    // leichter Impuls (fühlt sich "instant" aber sauber an)
+    bigger.boostX += (bigger.x - smaller.x) * 0.08;
+    bigger.boostY += (bigger.y - smaller.y) * 0.08;
+
+    p.pieces.splice(p.pieces.indexOf(smaller), 1);
     continue;
   }
-}
-        
+} 
 
         const overlap = (ra + rb) - d;
         if(overlap > 0){
@@ -437,47 +440,47 @@
 
   function splitPlayer(p){
   if(p.pieces.length >= MAX_PIECES) return;
+
   const newPieces = [];
 
   for(const c of p.pieces){
     if(p.pieces.length + newPieces.length >= MAX_PIECES) break;
     if(c.mass < settings.minSplitMass) continue;
 
-    const half = c.mass / 2;
-    c.mass = half;
+    const splitMass = c.mass / 2;
+    c.mass = splitMass;
 
-    // direction to target
+    // direction + skill control
     let dx = p.target.x - c.x;
     let dy = p.target.y - c.y;
 
-    const len = Math.hypot(dx, dy) || 1;
+    let len = Math.hypot(dx, dy) || 1;
     dx /= len;
     dy /= len;
 
-    // Agar-style skill spread
-    const spread = 0.14;
-    dx += (Math.random() - 0.5) * spread;
-    dy += (Math.random() - 0.5) * spread;
+    // 👉 PRO MOMENTUM (wichtig!)
+    const angleNoise = (Math.random() - 0.5) * 0.08;
+    const cs = Math.cos(angleNoise);
+    const sn = Math.sin(angleNoise);
 
-    const len2 = Math.hypot(dx, dy) || 1;
-    dx /= len2;
-    dy /= len2;
+    const ndx = dx * cs - dy * sn;
+    const ndy = dx * sn + dy * cs;
 
-    const speedBoost = 16 + massToRadius(half) * 0.22;
+    const speedBoost = 18 + Math.sqrt(splitMass) * 0.35;
 
     const np = makePiece(
       p,
-      c.x,
-      c.y,
-      half,
-      dx * speedBoost,
-      dy * speedBoost,
-      200
+      c.x + ndx * 6,
+      c.y + ndy * 6,
+      splitMass,
+      ndx * speedBoost,
+      ndy * speedBoost,
+      220
     );
 
-    // softer recoil (feeling control like pro players)
-    c.boostX *= 0.7;
-    c.boostY *= 0.7;
+    // recoil control (macht es nicht “random”)
+    c.boostX *= 0.6;
+    c.boostY *= 0.6;
 
     newPieces.push(np);
   }
